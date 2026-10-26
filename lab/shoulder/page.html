@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Escher maze: over-the-shoulder look test</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #f6eee2; font: 14px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; color: #3a3330; }
+  #stage, #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #hud { position: absolute; left: 12px; top: 10px; pointer-events: none; }
+  #where { font-weight: 600; font-size: 15px; background: rgba(255,255,255,0.72); padding: 5px 12px; border-radius: 999px; display: inline-block; }
+  #help { margin-top: 6px; font-size: 12.5px; background: rgba(255,255,255,0.62); padding: 6px 10px; border-radius: 10px; max-width: 360px; }
+  #note { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 7px 14px; border-radius: 999px; background: rgba(58,51,48,0.86); color: #fff; opacity: 0; transition: opacity .25s; pointer-events: none; max-width: calc(100% - 40px); text-align: center; }
+  #note.show { opacity: 1; }
+  #fade { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  #pad { position: absolute; right: 16px; bottom: 16px; display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(2, 52px); gap: 6px; }
+  #pad button { font-size: 22px; border: 1px solid rgba(58,51,48,0.2); border-radius: 12px; background: rgba(255,255,255,0.75); color: #3a3330; touch-action: none; }
+  #pad .up { grid-column: 2; grid-row: 1; } #pad .left { grid-column: 1; grid-row: 2; } #pad .down { grid-column: 2; grid-row: 2; } #pad .right { grid-column: 3; grid-row: 2; }
+  #copybox { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 320px; height: 260px; z-index: 5; }
+  .lil-gui.root { position: absolute; top: 0; right: 0; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="hud"><div id="where"></div>
+  <div id="help"><span id="keys"></span>
+  Coloured floor squares mark the ways on; grey ones lead out of this test. The door to the Gallery is in the far
+  wall, a step to the left of the orb; the stairs up to Landing I are on the right. Switch between step and turn
+  and free walking under "Moving" in the panel.</div></div>
+<div id="pad" aria-label="Move">
+  <button class="up" data-cmd="forward" aria-label="Step forward">▲</button>
+  <button class="left" data-cmd="left" aria-label="Turn left">↶</button>
+  <button class="down" data-cmd="back" aria-label="Step back">▼</button>
+  <button class="right" data-cmd="right" aria-label="Turn right">↷</button>
+</div>
+<div id="fade"></div>
+<p id="note" role="status"></p>
+<textarea id="copybox" hidden></textarea>
+<script>/*BUNDLE*/</script>
+</body>
+</html>
