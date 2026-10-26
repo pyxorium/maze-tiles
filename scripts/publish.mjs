@@ -1,5 +1,5 @@
-// Publishes the Escher maze tile from the thunderbird.cafe account (modelled on rooms-lab's scripts/publish.mjs,
-// without lexicons: the maze has none). Run from C:\thunderbird-cafe\maze-tiles (Node 22, no packages needed):
+// Publishes the Escher maze tile from the thunderbird.cafe account (modelled on rooms-lab's and daisy-tiles'
+// scripts/publish.mjs). Run from C:\thunderbird-cafe\maze-tiles (Node 22, no packages needed):
 //
 //   node scripts/publish.mjs              publish the maze if it isn't published yet
 //   node scripts/publish.mjs --dry-run    show what would be published; ask nothing, write nothing
@@ -12,6 +12,15 @@
 // It shows what will be published, asks for the account's app password (hidden as you type) and once more
 // before writing. The tile is always created as a new record (never overwriting); the record and every file are
 // read back and checked. What was published is written to published.json (commit it).
+//
+// Ways (claude/escher-maze-ways-plan.md): the maze's /ways.json names its place and its signpost. Alongside the
+// tile this also publishes
+//   - the two lexicons in lexicons\ (cafe.thunderbird.way.place, .signpost), each only when new or changed;
+//     the Wix TXT record _lexicon.way (value did=<the account>) covers them both;
+//   - the place record (cafe.thunderbird.way.place/maze): the tile's address and exact version (CID), written
+//     again after every publish, so whatever points at the place keeps working;
+//   - the signpost (cafe.thunderbird.way.signpost/maze.obelisk), EMPTY (dormant), and only if it doesn't exist
+//     yet: once you've pointed it somewhere, publishing never touches it.
 import readline from 'node:readline';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -19,11 +28,31 @@ import { fileURLToPath } from 'node:url';
 import { ROOT, TILES, publishFiles, cspOf } from './tiles.mjs';
 import { ISO_TILES } from '../iso/tiles.mjs';
 import { rawCid } from './lib/cid.js';
-import { publishTile } from './lib/tile-record.js';
+import { publishTile, publishLexicon } from './lib/tile-record.js';
 
 export const ACCOUNT = 'did:plc:6vxjigxrqizmbo56gojxico3';     // thunderbird.cafe
 export const PUBLISHED_FILE = join(ROOT, 'published.json');
 const GENERATOR = 'Escher maze';
+export const PLACE = 'cafe.thunderbird.way.place';
+export const SIGNPOST = 'cafe.thunderbird.way.signpost';
+export const LEXICON_IDS = [PLACE, SIGNPOST];
+const readLexicons = () => LEXICON_IDS.map((id) => JSON.parse(readFileSync(join(ROOT, 'lexicons', `${id}.json`), 'utf8')));
+
+// A tile's /ways.json, checked: its place and signposts must be this account's records of the right kinds.
+export function waysOf(id, tiles = TILES) {
+  const t = tiles[id];
+  if (!t.ways) return null;
+  const ways = JSON.parse(readFileSync(join(ROOT, t.folder, 'ways.json'), 'utf8'));
+  const parse = (uri, collection) => {
+    const m = /^at:\/\/([^/]+)\/([^/]+)\/([^/]+)$/.exec(uri || '');
+    if (!m || m[1] !== ACCOUNT || m[2] !== collection) throw new Error(`ways.json: ${uri} should be a ${collection} record of ${ACCOUNT}.`);
+    return { uri, rkey: m[3] };
+  };
+  return {
+    place: parse(ways.place, PLACE),
+    signposts: ways.exits.map((e) => ({ exit: e.id, ...parse(e.signpost, SIGNPOST) })),
+  };
+}
 
 async function getJson(fetchImpl, url, init) {
   const res = await fetchImpl(url, init);
@@ -76,15 +105,31 @@ export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = cons
     if (current === null) log('(Could not rebuild tile\\maze.js here to check it is up to date: make sure you ran `npm run build` after changing src\\.)');
   }
 
+  // Ways: the lexicons (new or changed), the place (after a publish, or if it's missing or behind), and any
+  // signpost that doesn't exist yet (read from the account, so one you've edited is never overwritten).
+  const withWays = Object.keys(tiles).filter((id) => tiles[id].ways);
+  const had = published.lexicons || {};
+  const lexiconsDue = withWays.length ? readLexicons().filter((l) => !had[l.id] || had[l.id].text !== JSON.stringify(l)) : [];
+  const placesDue = [], signpostsDue = [];
+  for (const id of withWays) {
+    const w = waysOf(id, tiles);
+    const p = (published.places || {})[id];
+    if (todo.some((t) => t.id === id) || !p || !published[id] || p.tile !== published[id].uri) placesDue.push({ id, ...w.place });
+    for (const sp of w.signposts) if (!(await recordExists(fetchImpl, pds, SIGNPOST, sp.rkey))) signpostsDue.push({ id, ...sp });
+  }
+
   log(`\nAccount: @${handle} (${ACCOUNT}), server ${pds}`);
-  if (!todo.length) { log('\nAlready published (see published.json). Use --again to publish it as a new record after a change.'); return { changed: false, published }; }
+  if (!todo.length && !lexiconsDue.length && !placesDue.length && !signpostsDue.length) { log('\nAlready published (see published.json). Use --again to publish it as a new record after a change.'); return { changed: false, published }; }
   log('\nThis will publish:');
   for (const t of todo) {
     const kb = t.files.reduce((n, f) => n + f.bytes.length, 0) / 1024;
     log(`  - a new tile "${t.name}": ${t.files.length} files, ${kb.toFixed(1)} KB (${t.files.map((f) => f.path).join(' ')})`);
   }
+  for (const l of lexiconsDue) log(`  - the lexicon ${l.id}, as com.atproto.lexicon.schema/${l.id}${had[l.id] ? ' (changed)' : ''}`);
+  for (const p of placesDue) log(`  - the place ${p.uri}: pointing at the ${todo.some((t) => t.id === p.id) ? 'new tile' : `tile in published.json`}, with its exact version`);
+  for (const sp of signpostsDue) log(`  - the signpost ${sp.uri}, empty (the ${sp.exit} leads nowhere yet)`);
   log('It is public. Nothing else in the account is touched.');
-  if (dryRun) { log('\nDry run: nothing was written.'); return { changed: false, plan: todo }; }
+  if (dryRun) { log('\nDry run: nothing was written.'); return { changed: false, plan: todo, lexiconsDue: lexiconsDue.map((l) => l.id), placesDue: placesDue.map((p) => p.uri), signpostsDue: signpostsDue.map((s) => s.uri) }; }
 
   const password = await askHidden(`\nApp password for @${handle} (hidden): `);
   if (!password) throw new Error('No app password given; nothing was published.');
@@ -112,6 +157,12 @@ export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = cons
   };
 
   const out = { ...published, account: ACCOUNT, handle };
+  for (const l of lexiconsDue) {
+    log(`\nPublishing the lexicon ${l.id}…`);
+    const r = await publishLexicon({ xrpc, did: ACCOUNT, lexicon: l });
+    out.lexicons = { ...(out.lexicons || {}), [l.id]: { uri: r.uri, cid: r.cid, text: JSON.stringify(l), publishedAt: now() } };
+    writePublished(out);
+  }
   for (const t of todo) {
     log(`\nPublishing "${t.name}"…`);
     const r = await publishTile({ xrpc, fetchBlob, did: ACCOUNT, tile: t, now, log });
@@ -121,10 +172,41 @@ export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = cons
     log(`  open it: https://raku.lexicographer.space/#t=${encodeURIComponent(r.uri)}&a=0`);
     log(`       or: https://lexicographer.space/@${handle}/${r.rkey}`);
   }
+  for (const p of placesDue) {
+    const tile = out[p.id];
+    log(`\nPointing the place ${p.rkey} at ${tile.uri}…`);
+    const record = { $type: PLACE, tile: tile.uri, cid: tile.cid, name: tiles[p.id].name, updatedAt: now() };
+    const put = await xrpc('com.atproto.repo.putRecord', { method: 'POST', body: { repo: ACCOUNT, collection: PLACE, rkey: p.rkey, record } });
+    const back = await getJson(fetchImpl, `${pds}/xrpc/com.atproto.repo.getRecord?repo=${encodeURIComponent(ACCOUNT)}&collection=${PLACE}&rkey=${encodeURIComponent(p.rkey)}`);
+    if (!back.value || back.value.tile !== tile.uri || back.value.cid !== tile.cid) throw new Error(`The place ${p.rkey} didn't read back as written.`);
+    out.places = { ...(out.places || {}), [p.id]: { uri: put.uri, cid: put.cid, tile: tile.uri, tileCid: tile.cid, updatedAt: record.updatedAt } };
+    writePublished(out);
+  }
+  for (const sp of signpostsDue) {
+    log(`\nSetting up the signpost ${sp.rkey} (empty: dormant)…`);
+    const record = { $type: SIGNPOST, to: [], updatedAt: now() };
+    // createRecord, not putRecord: it refuses if the signpost appeared meanwhile, so yours is never overwritten.
+    const put = await xrpc('com.atproto.repo.createRecord', { method: 'POST', body: { repo: ACCOUNT, collection: SIGNPOST, rkey: sp.rkey, record } });
+    if (!(await recordExists(fetchImpl, pds, SIGNPOST, sp.rkey))) throw new Error(`The signpost ${sp.rkey} didn't read back.`);
+    out.signposts = { ...(out.signposts || {}), [sp.rkey]: { uri: put.uri, createdAt: record.updatedAt } };
+    writePublished(out);
+  }
   log('\nPublished, and read back to check.');
+  if (lexiconsDue.length) log(`The Wix TXT record _lexicon.way (value did=${ACCOUNT}) must be in place for the lexicons: add it if you haven't.`);
   for (const t of todo) if (published[t.id] && again) log(`The earlier record (${published[t.id].uri}) is still there: delete it in PDSls once you're happy with the new one.`);
   log('Delete this app password (Bluesky: Settings > Privacy and security > App passwords).');
   return { changed: true, published: out };
+}
+
+// Does the account hold this record? (Public: no password needed.)
+async function recordExists(fetchImpl, pds, collection, rkey) {
+  try {
+    await getJson(fetchImpl, `${pds}/xrpc/com.atproto.repo.getRecord?repo=${encodeURIComponent(ACCOUNT)}&collection=${collection}&rkey=${encodeURIComponent(rkey)}`);
+    return true;
+  } catch (err) {
+    if (err.error === 'RecordNotFound' || err.status === 404) return false;
+    throw err;
+  }
 }
 
 function makeAsk() {

@@ -24,8 +24,9 @@
 //
 // marks: landmarks. orb (a pillar with an orb in the area's accent), pillar, obelisk, arches (blind arches
 // on a back wall), numeral (on a back wall), railing (along the open edges, instead of the kerb), blocks:
-// [x, y, w, d, h]. An obelisk can be a waystone (M9): `waystone: { note }` while it leads nowhere (dormant);
-// later `signpost` will name the record that says where it leads.
+// [x, y, w, d, h]. An obelisk can be a waystone (M9): `waystone: { exit }` names its exit in tile/ways.json, where
+// its signpost (the record that says where it leads) is named. A room's `entrances` are where travellers from
+// other tiles arrive: `{ id, at: [x, y], facing }`, the id as in tile/ways.json.
 // mapAt: the room's spot on the map card (M5).
 
 export const MAP = {
@@ -118,7 +119,11 @@ export const MAP = {
     hall: {
       // Bigger on the inside: the 2x2 Closet opens into it through a small door in a tall wall.
       name: 'Great Hall', area: 'ivory', size: [8, 8], mapAt: [5, 2], wallHeight: 4.5,
-      marks: [{ kind: 'obelisk', at: [3, 4], waystone: { note: "This doesn't lead anywhere yet." } }],
+      // The obelisk is the maze's one way out and one way in (claude/escher-maze-ways-plan.md, M17, M18): exit and
+      // entrance "obelisk" in tile/ways.json. Travellers from other tiles arrive beside it, facing down the hall
+      // towards the Cellar's stairs.
+      marks: [{ kind: 'obelisk', at: [3, 4], waystone: { exit: 'obelisk' } }],
+      entrances: [{ id: 'obelisk', at: [3, 5], facing: 'se' }],
       ways: [
         { id: 'closet', kind: 'door', side: 'nw', at: 2, to: 'closet.hall' },
         { id: 'lantern', kind: 'ramp', dir: 'up', side: 'ne', at: 5, to: 'lantern.hall' },

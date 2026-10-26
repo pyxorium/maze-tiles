@@ -1,0 +1,22 @@
+{
+  "lexicon": 1,
+  "id": "cafe.thunderbird.way.place",
+  "description": "A place: a stable name for a web tile that travellers can go to, whatever version of the tile is current. Ways between tiles (thunderbird.cafe, v 1): a tile lists its exits and entrances in its /ways.json; each exit names a signpost (cafe.thunderbird.way.signpost) that says where it leads; signposts point at places. Republishing a tile updates its place, so nothing pointing at the place has to change.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "The record key is the tile's short id, chosen once and never reused (e.g. \"maze\").",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["tile", "cid", "updatedAt"],
+        "properties": {
+          "tile": { "type": "string", "format": "at-uri", "description": "The tile's current record (ing.dasl.masl)." },
+          "cid": { "type": "string", "format": "cid", "description": "That record's exact version, so a host opens exactly what was meant." },
+          "name": { "type": "string", "maxLength": 300, "maxGraphemes": 100, "description": "A name to show on cards." },
+          "updatedAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

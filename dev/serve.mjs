@@ -2,6 +2,7 @@
 // C:\thunderbird-cafe\maze-tiles, then open http://127.0.0.1:5200/ (the tile, full window).
 //   http://127.0.0.1:5200/dev/frame.html      the tile in a 640 x 480 frame and a phone-sized one
 //   http://127.0.0.1:5200/dev/card-art.html   draws the card pictures (icon.png, banner.png) to save
+//   http://127.0.0.1:5200/dev/host.html       the maze held by a stand-in host: the obelisk open, dormant, or no host
 // It serves tile\ (the built maze.js: after changing src\, run `npm run build` first; it says so if you forget),
 // with the tile's security policy as the tile loader sends it. Only this computer can reach it. No packages needed.
 // The isometric step 1 has its own: `npm run dev-iso` (http://127.0.0.1:5201/).

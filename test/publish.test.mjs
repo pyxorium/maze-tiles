@@ -3,7 +3,7 @@
 // check that tile/maze.js is built from the current src/, and the isometric snapshot's own settings (--iso).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runPublish, ACCOUNT } from '../scripts/publish.mjs';
+import { runPublish, ACCOUNT, PLACE, SIGNPOST } from '../scripts/publish.mjs';
 import { publishFiles, TILES } from '../scripts/tiles.mjs';
 import { ISO_TILES } from '../iso/tiles.mjs';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -26,7 +26,7 @@ test('a dry run writes nothing and asks nothing', async () => {
   const r = await run(pds, { dryRun: true, askHidden: async () => { throw new Error('asked'); } });
   assert.equal(r.changed, false);
   assert.deepEqual(r.plan.map((t) => t.id), ['maze']);
-  assert.ok(!pds.calls.some((c) => c.includes('uploadBlob') || c.includes('Record')));
+  assert.ok(!pds.calls.some((c) => /uploadBlob|createRecord|putRecord|createSession/.test(c)), 'nothing written (it only looks the signpost up)');
 });
 
 test('publishing the maze: a Foundry-shaped record, every file read back', async () => {
@@ -41,7 +41,7 @@ test('publishing the maze: a Foundry-shaped record, every file read back', async
   assert.equal(value.tile.name, 'Escher maze');
   assert.equal(value.tile.generator, 'Escher maze');
   assert.deepEqual(value.tile.sizing, { width: 640, height: 480 });
-  assert.deepEqual(Object.keys(value.tile.resources).sort(), ['/', '/banner.png', '/icon.png', '/maze.css', '/maze.js']);
+  assert.deepEqual(Object.keys(value.tile.resources).sort(), ['/', '/banner.png', '/icon.png', '/maze.css', '/maze.js', '/ways.json']);
   const csp = value.tile.resources['/']['content-security-policy'];
   assert.match(csp, /connect-src 'self'/, 'the maze can\'t reach the network');
   assert.match(csp, /script-src 'self'/);
@@ -109,4 +109,70 @@ test('--iso: the isometric snapshot publishes on its own, under its own name, on
   assert.deepEqual(Object.keys(value.tile.resources).sort(),
     ['/', '/banner.png', '/graph.js', '/icon.png', '/main.js', '/map.js', '/mapcard.js', '/maze.css', '/render.js']);
   assert.equal(r.published.maze, undefined);
+  assert.ok(!pds.calls.some((c) => c.includes('lexicon')) && !r.published.places, 'the snapshot has no ways');
+  assert.ok(![...pds.records.keys()].some((k) => k.startsWith('cafe.thunderbird.way.')));
+});
+
+// ---- ways (claude/escher-maze-ways-plan.md, M21, M24) -----------------------------------------------------------
+test('ways: the lexicons, the place (with the tile\'s exact version) and an empty signpost, alongside the tile', async () => {
+  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+  const dry = await run(pds, { dryRun: true });
+  assert.deepEqual(dry.lexiconsDue, [PLACE, SIGNPOST]);
+  assert.deepEqual(dry.placesDue, [`at://${ACCOUNT}/${PLACE}/maze`]);
+  assert.deepEqual(dry.signpostsDue, [`at://${ACCOUNT}/${SIGNPOST}/maze.obelisk`]);
+  const r = await run(pds);
+  for (const id of [PLACE, SIGNPOST]) {
+    const l = pds.records.get(`com.atproto.lexicon.schema/${id}`);
+    assert.ok(l, `the lexicon ${id}`);
+    assert.equal(l.value.$type, 'com.atproto.lexicon.schema');
+  }
+  const place = pds.records.get(`${PLACE}/maze`).value;
+  assert.deepEqual(place, { $type: PLACE, tile: r.published.maze.uri, cid: r.published.maze.cid, name: 'Escher maze', updatedAt: '2026-10-25T12:00:00.000Z' });
+  assert.equal(place.cid, pds.records.get(`ing.dasl.masl/${r.published.maze.uri.split('/').pop()}`).cid, 'the CID is the tile record\'s');
+  const sign = pds.records.get(`${SIGNPOST}/maze.obelisk`).value;
+  assert.deepEqual(sign, { $type: SIGNPOST, to: [], updatedAt: '2026-10-25T12:00:00.000Z' }, 'empty: dormant');
+  assert.equal(r.published.places.maze.tile, r.published.maze.uri);
+  assert.ok(r.published.lexicons[PLACE].text);
+});
+
+test('ways: --again moves the place to the new tile and never touches a signpost you\'ve pointed somewhere', async () => {
+  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+  const first = await run(pds);
+  // The owner points the obelisk somewhere (by hand, in PDSls).
+  const pointed = { $type: SIGNPOST, to: [{ place: `at://${ACCOUNT}/${PLACE}/hub`, entrance: 'south-stone' }], updatedAt: '2026-11-01T00:00:00.000Z' };
+  pds.records.set(`${SIGNPOST}/maze.obelisk`, { value: pointed, cid: 'bafy-owner' });
+  const lexCalls = () => pds.calls.filter((c) => c.includes('putRecord')).length;
+  const before = lexCalls();
+  const again = await run(pds, { published: first.published, again: true });
+  assert.notEqual(again.published.maze.uri, first.published.maze.uri);
+  const place = pds.records.get(`${PLACE}/maze`).value;
+  assert.equal(place.tile, again.published.maze.uri);
+  assert.equal(place.cid, again.published.maze.cid);
+  assert.deepEqual(pds.records.get(`${SIGNPOST}/maze.obelisk`).value, pointed, 'the signpost is yours');
+  assert.equal(lexCalls() - before, 1, 'only the place was written again (the lexicons are unchanged)');
+});
+
+test('ways: a missing place or signpost is put right without republishing the tile', async () => {
+  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+  const first = await run(pds);
+  pds.records.delete(`${SIGNPOST}/maze.obelisk`);
+  const { places, ...noPlace } = first.published;
+  const fix = await run(pds, { published: noPlace });
+  assert.equal(fix.changed, true);
+  assert.equal(fix.published.maze.uri, first.published.maze.uri, 'the same tile');
+  assert.equal(pds.records.get(`${PLACE}/maze`).value.tile, first.published.maze.uri);
+  assert.deepEqual(pds.records.get(`${SIGNPOST}/maze.obelisk`).value.to, []);
+  const calm = await run(pds, { published: fix.published });
+  assert.equal(calm.changed, false, 'then nothing to do');
+});
+
+test('ways: a changed lexicon is published again; a signpost that appears meanwhile is never overwritten', async () => {
+  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+  const first = await run(pds);
+  const stale = { ...first.published, lexicons: { ...first.published.lexicons, [SIGNPOST]: { ...first.published.lexicons[SIGNPOST], text: '{}' } } };
+  const r = await run(pds, { published: stale, dryRun: true });
+  assert.deepEqual(r.lexiconsDue, [SIGNPOST]);
+  // createRecord refuses a key that's taken: the stand-in does as a real server.
+  const res = await pds.fetchImpl('https://pds.test/xrpc/com.atproto.repo.createRecord', { method: 'POST', headers: { Authorization: 'Bearer fake-jwt' }, body: JSON.stringify({ repo: ACCOUNT, collection: SIGNPOST, rkey: 'maze.obelisk', record: { to: [] } }) });
+  assert.equal(res.status, 400);
 });

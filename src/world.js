@@ -64,6 +64,11 @@ function onWall(geo, side, at, off = 0) {
   return geo;
 }
 
+// The waystones' tips, every time a room with one is built (a room can be built more than once): main.js sets
+// their colour, dull (dormant, or no host) or the area's accent, glowing (it leads somewhere).
+export const WAYSTONE_TIPS = [];
+export const dullTip = (area) => area.accent.map((v, i) => v + (area.pillar[i] - v) * 0.62);
+
 export const opensOf = (room) => new Set(room.ways.filter((w) => w.to && !w.closed).map((w) => w.id));
 
 export function buildRoom(map, id, { open = opensOf(map.rooms[id]) } = {}) {
@@ -165,9 +170,13 @@ export function buildRoom(map, id, { open = opensOf(map.rooms[id]) } = {}) {
       // A waystone (M9) glows when it leads somewhere; dormant, its tip is a dull version of the accent.
       const [x, y] = m.at;
       add(boxGeo(x + 0.15, y + 0.15, 0, 0.7, 0.7, 3.4), area.pillar);
-      const dormant = m.waystone && !m.waystone.signpost;
-      const tip = dormant ? area.accent.map((v, i) => v + (area.pillar[i] - v) * 0.45) : area.accent;
-      const c = new THREE.ConeGeometry(0.5, 0.9, 4); c.rotateY(Math.PI / 4); c.translate(x + 0.5, 3.85, y + 0.5); add(c, tip);
+      const c = new THREE.ConeGeometry(0.5, 0.9, 4); c.rotateY(Math.PI / 4); c.translate(x + 0.5, 3.85, y + 0.5);
+      if (m.waystone) {
+        // Its tip has a material of its own, so the maze can light it when a host says it leads somewhere (M22).
+        const tipMat = new THREE.MeshBasicMaterial({ vertexColors: true, color: srgb(dullTip(area)) });
+        extra.push(new THREE.Mesh(shade(c, [255, 255, 255]), tipMat));
+        WAYSTONE_TIPS.push({ exit: m.waystone.exit, material: tipMat, dull: dullTip(area), bright: area.accent });
+      } else add(c, area.accent);
     } else if (m.kind === 'arches') {
       for (let i = 0; i < m.count; i++) {
         const at = m.from + i;

@@ -2,11 +2,12 @@
 // is installed): node test/browser/check.mjs [folder for screenshots]
 // It serves the tile as dev/serve.mjs does (with the tile's security policy) and walks it. Free walking (as a
 // player would: turn by dragging, hold ↑): up the Courtyard's stairs into Landing I with no cut, round the Penrose
-// loop, up to the Lookout, the Lantern room's closed door, down the ramp, the dormant obelisk, the Great Hall's
+// loop, up to the Lookout, the Lantern room's closed door, down the ramp, the obelisk (no host: its fallback), the Great Hall's
 // small door into the Closet, the Gallery, home; the Well room's hole and the fall into the Cellar, and out again.
 // Then the map card, the gear menu (back to the start, the map kept), step and turn (routes planned with the
 // maze's own rules: the loop, the stairs down, the fall), the keyboard, "reduce motion", and a phone: the thumb
-// joystick, dragging to turn, the arrow buttons. WebGL runs in software here (SwiftShader), about 8 frames a second.
+// joystick, dragging to turn, the arrow buttons. Then ways with a stand-in host (dev/host.html): hello, the obelisk
+// open, dormant or no host, arriving at the obelisk, way.leave. WebGL runs in software here (SwiftShader), about 8 frames a second.
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
@@ -43,6 +44,7 @@ async function open(opts = {}) {
 const st = (page) => page.evaluate(() => window.__maze.state());
 const idle = (page) => page.waitForFunction(() => { const s = window.__maze.state(); return !s.busy && !s.fading && !s.falling; }, null, { timeout: 30000 });
 const jump = (page, room, at, facing) => page.evaluate(([r, a, f]) => window.__maze.jump(r, a, f), [room, at, facing]);
+const offerOf = (page) => page.evaluate(() => { const o = document.getElementById('offer'), a = document.getElementById('offerlink'); return o.hidden ? null : { text: document.getElementById('offertext').textContent, link: a.textContent, href: a.href, target: a.target }; });
 const noteText = (page) => page.evaluate(() => { const n = document.getElementById('note'); return n.classList.contains('show') ? n.textContent : ''; });
 // Watch the state every frame from now on (to see what happened during a move).
 const watch = (page) => page.evaluate(() => { window.__seen = []; const f = () => { window.__seen.push(window.__maze.state()); if (window.__seen.length < 3000) requestAnimationFrame(f); }; requestAnimationFrame(f); });
@@ -179,12 +181,16 @@ try {
   s = await st(page);
   ok(s.local[2] > 1.4 && s.local[2] < 2.1, `arriving on the ramp's slope (height ${s.local[2].toFixed(2)})`);
 
-  // The dormant waystone (M9).
+  // The waystone (M9, M22). The tile opened on its own is a plain viewer: no host, so it offers its fallback.
   s = await walk(page, 'hall', [[3.5, 2.5], [3.5, 3.2]]);
   await face(page, [3.5, 4.5]);
   await page.keyboard.down('ArrowUp'); await page.waitForTimeout(700); await page.keyboard.up('ArrowUp');
-  ok(/doesn't lead anywhere yet/.test(await noteText(page)), 'the obelisk: "This doesn\'t lead anywhere yet."');
+  let o = await offerOf(page);
+  ok(o && /can't take you anywhere from here/.test(o.text) && o.link === 'Open where this leads' && o.href === 'https://thunderbird.cafe/way/maze/obelisk' && o.target === '_blank',
+    'the obelisk with no host: "I can\'t take you anywhere from here." and its fallback address in a new tab');
   await shot(page, '04-obelisk');
+  await page.keyboard.press('Escape');
+  ok(!(await offerOf(page)), 'Escape closes the offer');
 
   // Bigger on the inside, backwards: the Great Hall's small door → the Closet → the Gallery → the Courtyard.
   s = await walk(page, 'hall', [[0.5, 2.5], [-0.8, 2.5]]);
@@ -294,7 +300,10 @@ try {
   await page.keyboard.press('ArrowUp'); await idle(page);
   await page.keyboard.press('ArrowUp'); await idle(page);
   s = await st(page);
-  ok(s.cell.join() === '3,3' && /doesn't lead anywhere yet/.test(await noteText(page)), 'step and turn: a step into the obelisk says it leads nowhere yet');
+  o = await offerOf(page);
+  ok(s.cell.join() === '3,3' && o && /can't take you anywhere/.test(o.text), 'step and turn: a step into the obelisk offers the fallback (no host)');
+  await page.click('#offerclose');
+  ok(!(await offerOf(page)), 'the offer\'s × closes it');
 
   // The keyboard reaches the buttons; the menu works from the keyboard.
   // (Click the view first: Tab then starts from the top of the page, as it does on arrival.)
@@ -377,6 +386,67 @@ try {
   ok(b.cell.join() !== a.cell.join() && b.facing === RIGHT_OF[a.facing], `a tap, a step; a tap, a turn (${a.cell} ${a.facing} → ${b.cell} ${b.facing})`);
   await shot(phone, '12-phone-step');
   ok(phone.errors.length === 0, `no errors on the phone${phone.errors.length ? `: ${phone.errors.join(' | ')}` : ''}`);
+
+  // ---- ways with a stand-in host (dev/host.html, claude/escher-maze-ways-plan.md M18, M22, M23) ---------------
+  for (const p of pages) await p.close();         // software WebGL: a few pages at a time
+  const tipOf = (f) => f.evaluate(() => window.__maze.state().tip[0]);
+  const hosts = {};
+  for (const mode of ['open', 'dormant', 'plain']) {
+    const hp = await browser.newPage({ viewport: { width: 900, height: 760 } });
+    hp.errors = [];
+    hp.on('pageerror', (e) => hp.errors.push(e.message));
+    hp.on('console', (m) => { if (m.type() === 'error') hp.errors.push(m.text()); });
+    await hp.goto(`http://127.0.0.1:${PORT}/dev/host.html?mode=${mode}`, { timeout: 60000 });
+    const f = hp.frame({ url: new RegExp(`${PORT}/$`) });
+    await f.waitForFunction(() => window.__maze, null, { timeout: 30000 });
+    await hp.waitForTimeout(1500);
+    hosts[mode] = { hp, f };
+  }
+  {
+    const { hp, f } = hosts.open;
+    const log = await hp.evaluate(() => window.__host.log);
+    ok(log[0] && log[0].kind === 'hello' && log[0].tile === 'maze' && log[0].ways === '/ways.json', 'in a frame the maze says hello to its page, naming its ways');
+    ok((await f.evaluate(() => window.__maze.state().obelisk)) === 'open', 'a host says the obelisk leads somewhere');
+    await hp.evaluate(() => window.__host.arrive());
+    await hp.waitForTimeout(2200);
+    let s = await f.evaluate(() => window.__maze.state());
+    ok(s.room === 'hall' && s.cell.join() === '3,5' && s.facing === 'se' && s.visited.includes('hall'), 'way.arrive: you arrive beside the obelisk, facing down the hall (M18)');
+    await shot(hp, '13-host-arrive');
+    await f.evaluate(() => window.__maze.jump('hall', [3.5, 5.6], 'ne'));
+    await hp.waitForTimeout(500);
+    await f.locator('#stage canvas').click({ position: { x: 5, y: 300 } });
+    await hp.keyboard.down('ArrowUp'); await hp.waitForTimeout(900); await hp.keyboard.up('ArrowUp');
+    await hp.waitForTimeout(300);
+    const left = (await hp.evaluate(() => window.__host.log)).filter((p) => p.kind === 'leave');
+    ok(left.length === 1 && left[0].exit === 'obelisk' && left[0].facing === 'ne' && Object.keys(left[0]).sort().join() === 'exit,facing,kind,v',
+      'stepping into an open obelisk: way.leave, the exit and facing only (never who)');
+    ok(/On your way/.test(await noteText(f)), '"On your way…"');
+  }
+  {
+    const { hp, f } = hosts.dormant;
+    ok((await f.evaluate(() => window.__maze.state().obelisk)) === 'dormant', 'a host with an empty signpost: dormant');
+    await f.evaluate(() => window.__maze.jump('hall', [3.5, 5.6], 'ne'));
+    await hp.waitForTimeout(500);
+    await f.locator('#stage canvas').click({ position: { x: 5, y: 300 } });
+    await hp.keyboard.down('ArrowUp'); await hp.waitForTimeout(900); await hp.keyboard.up('ArrowUp');
+    await hp.waitForTimeout(300);
+    ok(/doesn't lead anywhere yet/.test(await noteText(f)) && !(await offerOf(f)), 'a dormant obelisk: "This doesn\'t lead anywhere yet." (no offer)');
+    ok(!(await hp.evaluate(() => window.__host.log)).some((p) => p.kind === 'leave'), 'and nothing is sent');
+  }
+  {
+    const { hp, f } = hosts.plain;
+    const s = await f.evaluate(() => window.__maze.state());
+    ok(s.ways === 'plain' && s.obelisk === 'plain', 'no answer within a second: a plain viewer');
+    ok((await hp.evaluate(() => window.__host.log)).filter((p) => p.kind === 'hello').length === 2, 'it said hello twice, half a second apart');
+    await f.evaluate(() => window.__maze.jump('hall', [7.2, 7.2], 'nw'));      // so its obelisk is built
+    await hp.waitForTimeout(1200);
+  }
+  const tips = { open: await tipOf(hosts.open.f), dormant: await tipOf(hosts.dormant.f), plain: await tipOf(hosts.plain.f) };
+  ok(tips.open !== tips.dormant && tips.dormant === tips.plain, `the tip glows only when open (${tips.open} / ${tips.dormant} / ${tips.plain})`);
+  await hosts.open.f.evaluate(() => window.__maze.jump('hall', [7.2, 7.2], Math.atan2(3.5 - 7.2, -(4.5 - 7.2))));
+  await hosts.open.hp.waitForTimeout(2000);
+  await shot(hosts.open.hp, '14-host-open-glow');
+  for (const m of Object.keys(hosts)) ok(hosts[m].hp.errors.length === 0, `no errors with a host (${m})${hosts[m].hp.errors.length ? `: ${hosts[m].hp.errors.join(' | ')}` : ''}`);
 } catch (err) {
   console.log(`FAIL the check stopped: ${err.message}`);
   failures++;

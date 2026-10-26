@@ -1,4 +1,5 @@
-// COPY of rooms-lab/test/fake-pds.mjs (Oct 25 2026), unchanged below this line.
+// COPY of rooms-lab/test/fake-pds.mjs (Oct 25 2026); one addition for the maze (Oct 26): createRecord refuses a
+// key that's already taken, as a real PDS does.
 // COPY of daisy-tiles/test/fake-pds.mjs (Oct 23 2026), unchanged below this line.
 // A stand-in for an account's PDS and plc.directory, as a fetch function, for checking publish.mjs.
 // It does what a real one does for these calls: stores blobs under their raw CID (with the type of the
@@ -47,6 +48,8 @@ export function createFakePds({ did, handle, password = 'right-password', stored
           if (kept && kept.mimeType !== ref.mimeType) return json(400, { error: 'InvalidMimeType', message: `Referenced Mimetype does not match stored blob. Expected: ${kept.mimeType}, Got: ${ref.mimeType}` });
         }
         const rkey = b.rkey || `3m${String(++n).padStart(11, 'a')}`;
+        // (Added for the maze's signposts:) like a real PDS, createRecord refuses a key that's already taken.
+        if (nsid === 'com.atproto.repo.createRecord' && records.has(`${b.collection}/${rkey}`)) return json(400, { error: 'InvalidRequest', message: 'Record already exists' });
         const cid = await dagCborCid({ record: b.record, n: ++n });
         records.set(`${b.collection}/${rkey}`, { value: b.record, cid });
         return json(200, { uri: `at://${did}/${b.collection}/${rkey}`, cid });

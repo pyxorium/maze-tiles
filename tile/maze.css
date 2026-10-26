@@ -103,3 +103,21 @@ body.step #hint { bottom: 140px; }
 }
 #note.show { opacity: 1; }
 body.touch #note, body.step #note { bottom: auto; top: 56px; }
+
+/* The obelisk's offer on a plain viewer (no host carries travellers): its fallback address in a new tab. */
+#offer {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 5;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
+  margin: 0; padding: 8px 10px 8px 16px; border-radius: 18px; max-width: calc(100% - 32px); box-sizing: border-box;
+  background: rgba(58, 51, 48, 0.92); color: #fff; font-weight: 500;
+}
+#offer[hidden] { display: none; }
+#offer p { margin: 0; }
+#offer a { color: #fff; background: rgba(255, 255, 255, 0.16); padding: 5px 12px; border-radius: 999px; text-decoration: none; white-space: nowrap; }
+#offer a:hover, #offer a:focus-visible { background: rgba(255, 255, 255, 0.3); }
+#offer button { border: 0; background: none; color: #fff; font: inherit; font-size: 18px; line-height: 1; padding: 4px 6px; cursor: pointer; }
+body.touch #offer, body.step #offer { bottom: auto; top: 56px; }
+
+/* While the first hint is showing, notes and the offer sit just above (or below) it rather than on top of it. */
+body:has(#hint:not(.gone)) #note, body:has(#hint:not(.gone)) #offer { bottom: 58px; }
+body.touch:has(#hint:not(.gone)) #note, body.touch:has(#hint:not(.gone)) #offer { bottom: auto; top: 100px; }

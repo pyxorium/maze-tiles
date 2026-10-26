@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "tile": "maze",
+  "place": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.place/maze",
+  "exits": [
+    {
+      "id": "obelisk",
+      "signpost": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.signpost/maze.obelisk",
+      "fallback": "https://thunderbird.cafe/way/maze/obelisk"
+    }
+  ],
+  "entrances": [
+    { "id": "obelisk" }
+  ]
+}

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Escher maze, with a stand-in host</title>
+<link rel="stylesheet" href="./frame.css">
+<link rel="stylesheet" href="./host.css">
+</head>
+<body>
+<p>The maze held by a stand-in host, as Raku or the Rooms lab would one day hold it (claude/escher-maze-ways-plan.md).
+The host answers the maze's hello with what the obelisk's signpost would say. Walk to the Great Hall's obelisk and
+step into it.</p>
+<form id="modes">
+  <label><input type="radio" name="mode" value="open"> The obelisk leads somewhere</label>
+  <label><input type="radio" name="mode" value="dormant"> It leads nowhere yet (empty signpost)</label>
+  <label><input type="radio" name="mode" value="plain"> No host (don't answer: a plain viewer)</label>
+  <button type="button" id="arrive">Send a traveller in, at the obelisk</button>
+</form>
+<iframe id="maze" src="/" width="640" height="480" title="Escher maze"></iframe>
+<h2>What the maze said</h2>
+<ol id="log"></ol>
+<script src="./host.js"></script>
+</body>
+</html>

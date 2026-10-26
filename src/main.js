@@ -10,7 +10,8 @@
 import * as THREE from 'three';
 import { MAP } from './map.js';
 import { createNav, splitTo, wayOf } from './graph.js';
-import { buildFigure, srgb } from './world.js';
+import { buildFigure, srgb, WAYSTONE_TIPS } from './world.js';
+import { joinWays, exitOf } from './ways.js';
 import { createView } from './view.js';
 import {
   DIRS, LEFT_OF, RIGHT_OF, gatesOf, heightsOf, dropsOf, step, apply, invert, IDENTITY,
@@ -189,14 +190,26 @@ async function command(c) {
   }
 }
 
-// The dormant waystone (M9): walk up to the Great Hall's obelisk and it says it doesn't lead anywhere yet.
+// The waystone (M9, M17 to M24): the Great Hall's obelisk, the maze's one way out and one way in. Only a host can
+// say whether it leads anywhere (src/ways.js): open, it glows and stepping in tells the host you left by it;
+// dormant, it says so; no host at all (a plain viewer), it offers its fallback address in a new tab (M19, M22).
+const ways = joinWays({ onStatus: () => paintTips(performance.now()), onArrive: (id) => arrive(id) });
 let waystoneAt = 0;
+function touchMark(m) {
+  if (performance.now() - waystoneAt < 2500) return;
+  waystoneAt = performance.now();
+  const exit = m.waystone.exit;
+  const st = ways.state(exit);
+  if (st === 'open') { if (ways.leave(exit, fig.facing)) ui.note('On your way…'); }
+  else if (st === 'dormant') ui.note("This doesn't lead anywhere yet.");
+  else ui.offer("I can't take you anywhere from here.", 'Open where this leads', exitOf(exit).fallback);
+}
 function touchWaystone(cell, facing, sign = 1) {
   const d = DIRS[facing];
   const ahead = [cell[0] + d[0] * sign, cell[1] + d[1] * sign];
   for (const m of MAP.rooms[fig.room].marks || []) {
     if (!m.waystone || m.at[0] !== ahead[0] || m.at[1] !== ahead[1]) continue;
-    if (performance.now() - waystoneAt > 2500) { waystoneAt = performance.now(); ui.note(m.waystone.note); }
+    touchMark(m);
     return true;
   }
   return false;
@@ -208,11 +221,35 @@ function touchWaystoneFree(fwd) {
     if (!m.waystone) continue;
     const dx = m.at[0] + 0.5 - fig.local[0], dy = m.at[1] + 0.5 - fig.local[1];
     const dist = Math.hypot(dx, dy);
-    if (dist < 0.95 && (dx * f[0] + dy * f[1]) / dist > 0.6 && performance.now() - waystoneAt > 2500) {
-      waystoneAt = performance.now();
-      ui.note(m.waystone.note);
-    }
+    if (dist < 0.95 && (dx * f[0] + dy * f[1]) / dist > 0.6) touchMark(m);
   }
+}
+// The tip: dull unless a host says the way is open; then the area's accent, gently brightening and fading
+// (steady with "reduce motion").
+function paintTips(now) {
+  for (const t of WAYSTONE_TIPS) {
+    if (ways.state(t.exit) !== 'open') { t.material.color.copy(srgb(t.dull)); continue; }
+    const k = reduceMotion ? 0.3 : 0.22 + 0.33 * (0.5 + 0.5 * Math.sin(now / 1000 * 2.2));
+    t.material.color.copy(srgb(t.bright.map((v) => v + (255 - v) * k)));
+  }
+}
+// Someone arriving from another tile (way.arrive): beside the obelisk, facing down the hall (M18). A quick fade,
+// as "Back to the start"; the map card notes the Great Hall as found.
+async function arrive(id) {
+  const roomId = Object.keys(MAP.rooms).find((r) => (MAP.rooms[r].entrances || []).some((e) => e.id === id));
+  if (!roomId || falling) return;
+  const e = MAP.rooms[roomId].entrances.find((x) => x.id === id);
+  fading = true;
+  await fade(1);
+  Object.assign(fig, { room: roomId, cell: [...e.at], facing: e.facing, yaw: yawOf(e.facing), place: IDENTITY, support: undefined });
+  fig.h = heightsCache.get(roomId).get(`${e.at[0]},${e.at[1]}`) ?? 0;
+  fig.local = [e.at[0] + 0.5, e.at[1] + 0.5, fig.h];
+  nav.state.room = roomId; nav.state.visited.add(roomId);
+  view = roomId; chain = []; cam.ready = false;
+  ui.setRoom(MAP.rooms[roomId].name);
+  await fade(0);
+  fading = false;
+  ui.note('You arrive by the obelisk.');
 }
 
 // Free walking (M8): hold to walk, turn smoothly; the thumb joystick on phones (M15).
@@ -467,6 +504,7 @@ let paused = false;
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
+  paintTips(now);
   if (!paused) render(dt);
   requestAnimationFrame(frame);
 }
@@ -509,7 +547,7 @@ function restart() {
 // For the browser check and the card pictures (test/browser/check.mjs, dev/card-art.html) only; nothing on the page
 // calls these.
 window.__maze = {
-  state: () => ({ room: fig.room, view, chain: chain.length, cell: [...fig.cell], h: fig.h, local: [...fig.local], yaw: fig.yaw, facing: fig.facing, busy, fading, falling: falling && falling.phase, movement: params.movement, reduceMotion, visited: [...nav.state.visited], fell: nav.state.fell, drawn: lastDrawn, camera: fromV3(cam.pos) }),
+  state: () => ({ room: fig.room, view, chain: chain.length, cell: [...fig.cell], h: fig.h, local: [...fig.local], yaw: fig.yaw, facing: fig.facing, busy, fading, falling: falling && falling.phase, movement: params.movement, reduceMotion, visited: [...nav.state.visited], fell: nav.state.fell, drawn: lastDrawn, camera: fromV3(cam.pos), ways: ways.mode, obelisk: ways.state('obelisk'), tip: WAYSTONE_TIPS.map((t) => t.material.color.getHexString()) }),
   jump(roomId, at, facingOrYaw) {
     const yaw = typeof facingOrYaw === 'number' ? facingOrYaw : yawOf(facingOrYaw || 'ne');
     const h = heightsCache.get(roomId).get(`${Math.floor(at[0])},${Math.floor(at[1])}`) ?? 0;

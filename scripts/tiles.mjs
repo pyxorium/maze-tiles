@@ -13,14 +13,15 @@ export const TILES = {
     description: "Wander an impossible place, seen from just behind your shoulder: twelve rooms joined by doors, stairs, ramps and a hole in the floor that don't fit one real space. Climb four flights, all up, and end where you began; fall through a hole with no way back up; step out of a closet into a hall far bigger than it. Every doorway shows the room beyond, and you walk through with no cut. The map fills in as you go.",
     sizing: { width: 640, height: 480 },
     folder: 'tile',
-    files: ['index.html', 'maze.css', 'maze.js'],
+    files: ['index.html', 'maze.css', 'maze.js', 'ways.json'],
+    ways: true,                                   // has /ways.json: publish.mjs also writes its place and signpost
   },
 };
 // Card pictures, drawn from the 3D rooms by dev/card-art.html.
 export const CARD_FILES = ['icon.png', 'banner.png'];
 
 // The Foundry's one fixed type per kind of file (web-tile-foundry/src/core/fileset.js CONTENT_TYPES).
-export const PUBLISH_TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png' };
+export const PUBLISH_TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' };
 
 // The tile's own security policy, from its page's <meta> tag (it also goes in the record, as the Foundry does).
 export function cspOf(html) {

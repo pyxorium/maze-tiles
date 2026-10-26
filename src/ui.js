@@ -18,6 +18,20 @@ export function createUi({ map, nav, getMovement, setMovement, getReduceMotion, 
     clearTimeout(noteTimer);
     noteTimer = setTimeout(() => noteEl.classList.remove('show'), 2600);
   }
+  // An offer with a link (the obelisk on a plain viewer, M22): stays until closed, Escape, leaving the room, or 12 s.
+  const offerEl = $('offer'), offerText = $('offertext'), offerLink = $('offerlink');
+  let offerTimer = 0;
+  function offer(text, linkText, href) {
+    offerText.textContent = text;
+    offerLink.textContent = linkText;
+    offerLink.href = href;
+    offerEl.hidden = false;
+    clearTimeout(offerTimer);
+    offerTimer = setTimeout(closeOffer, 12000);
+  }
+  function closeOffer() { clearTimeout(offerTimer); offerEl.hidden = true; }
+  $('offerclose').addEventListener('click', closeOffer);
+  offerLink.addEventListener('click', () => setTimeout(closeOffer, 300));
   let hintGone = false;
   const hideHint = () => { if (!hintGone) { hintGone = true; hintEl.classList.add('gone'); } };
   setTimeout(hideHint, 12000);
@@ -73,9 +87,9 @@ export function createUi({ map, nav, getMovement, setMovement, getReduceMotion, 
   }
 
   return {
-    note,
+    note, offer, closeOffer, offerOpen: () => !offerEl.hidden,
     moved: hideHint,
-    setRoom(name) { if (roomEl.textContent !== name) roomEl.textContent = name; if (!mapcard.hidden) drawMap(); },
+    setRoom(name) { if (roomEl.textContent !== name) { roomEl.textContent = name; closeOffer(); } if (!mapcard.hidden) drawMap(); },
     setFade(a) { const v = String(Math.round(a * 1000) / 1000); if (fadeEl.style.opacity !== v) fadeEl.style.opacity = v; },
     isOpen: () => !menu.hidden || !mapcard.hidden,
     // Keys the page itself handles; true when used.
@@ -84,6 +98,7 @@ export function createUi({ map, nav, getMovement, setMovement, getReduceMotion, 
       if (typingInMenu) return false;
       if (e.code === 'KeyM') { toggleMap(); return true; }
       if (e.code === 'Escape' && (!menu.hidden || !mapcard.hidden)) { toggleMenu(false); toggleMap(false); return true; }
+      if (e.code === 'Escape' && !offerEl.hidden) { closeOffer(); return true; }
       return false;
     },
     setMovementHelp,

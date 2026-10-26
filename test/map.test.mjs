@@ -158,11 +158,11 @@ test('M16: the Well room is 5 x 5 with room to walk round its hole; the Lookout 
   assert.equal(clearAhead('lookout', 'down'), 5);
 });
 
-test('M9: the Great Hall\'s obelisk is a dormant waystone', () => {
+test('M9, M17: the Great Hall\'s obelisk is the maze\'s one waystone, exit "obelisk"', () => {
+  const stones = Object.values(MAP.rooms).flatMap((r) => (r.marks || []).filter((m) => m.waystone));
+  assert.equal(stones.length, 1);
   const ob = MAP.rooms.hall.marks.find((m) => m.kind === 'obelisk');
-  assert.ok(ob.waystone);
-  assert.equal(ob.waystone.signpost, undefined, 'it leads nowhere yet');
-  assert.match(ob.waystone.note, /doesn't lead anywhere yet/);
+  assert.deepEqual(ob.waystone, { exit: 'obelisk' });
 });
 
 test('the drop\'s landing turns you to face the long way (not into the Cellar\'s stairs)', () => {
