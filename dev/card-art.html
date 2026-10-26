@@ -6,11 +6,12 @@
 <link rel="stylesheet" href="./frame.css">
 </head>
 <body>
-<p>The maze's card pictures, drawn with the tile's own code. To change them: save each (the links, or right-click
-the picture) as <code>tile\icon.png</code> and <code>tile\banner.png</code>, then publish the tile again.</p>
+<p>The maze's card pictures, drawn from the 3D rooms by the tile itself (the frame below runs it). To change them:
+save each (the links, or right-click the picture) as <code>tile\icon.png</code> and <code>tile\banner.png</code>,
+then publish the tile again. The views are set in <code>dev\card-art.js</code>.</p>
 <p><a id="get-banner" download="banner.png" href="#">Save banner.png</a> (1280 × 720) · <a id="get-icon" download="icon.png" href="#">Save icon.png</a> (256 × 256)</p>
-<canvas id="banner" width="1280" height="720"></canvas>
-<canvas id="icon" width="256" height="256"></canvas>
+<p><img id="banner" alt="The banner" width="640" height="360"> <img id="icon" alt="The icon" width="256" height="256"></p>
+<iframe id="maze" src="/" width="640" height="480" title="Escher maze"></iframe>
 <script type="module" src="./card-art.js"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { testMap } from '../lab/shoulder/test-map.js';
 import { gatesOf, heightsOf, step, placement, apply, applyDir, invert, rot, nameOf, LEFT_OF, RIGHT_OF } from '../lab/shoulder/walk.js';
-import { splitTo } from '../tile/graph.js';
+import { splitTo } from '../iso/tile/graph.js';
 
 const M = testMap();
 const gate = (room, id) => gatesOf(M.rooms[room]).find((g) => g.way.id === id);

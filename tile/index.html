@@ -7,21 +7,43 @@
 <title>Escher maze</title>
 <link rel="stylesheet" href="./maze.css">
 </head>
-<body>
-<canvas id="view" aria-hidden="true"></canvas>
+<body class="free">
+<div id="stage"></div>
 <header id="bar">
-  <button id="back" type="button" title="Back (B)" aria-keyshortcuts="B"><span aria-hidden="true">↶</span> Back</button>
   <p id="room" aria-live="polite"></p>
-  <button id="mapbtn" type="button" title="Map (M)" aria-keyshortcuts="M" aria-expanded="false" aria-controls="mapcard">Map</button>
+  <div class="buttons">
+    <button id="mapbtn" type="button" title="Map (M)" aria-keyshortcuts="M" aria-expanded="false" aria-controls="mapcard">Map</button>
+    <button id="gearbtn" type="button" title="Settings" aria-label="Settings" aria-expanded="false" aria-controls="menu"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg></button>
+  </div>
 </header>
-<div id="ways" role="group" aria-label="Ways on from this room"></div>
+<p id="hint" aria-hidden="true"></p>
+<div id="stick" hidden><div id="knob"></div></div>
+<div id="pad" role="group" aria-label="Step and turn">
+  <button class="up" type="button" data-cmd="forward" aria-label="Step forward">▲</button>
+  <button class="left" type="button" data-cmd="left" aria-label="Turn left">↶</button>
+  <button class="down" type="button" data-cmd="back" aria-label="Step back">▼</button>
+  <button class="right" type="button" data-cmd="right" aria-label="Turn right">↷</button>
+</div>
+<div id="fade"></div>
 <div id="mapcard" hidden>
   <div class="card" role="dialog" aria-label="Map" aria-modal="false">
     <canvas id="mapcanvas" role="img" aria-label="Rooms you've found and the ways you've taken"></canvas>
     <p class="hint">Rooms you've found. Lines are ways you've taken; arrows point up.</p>
   </div>
 </div>
+<div id="menu" hidden role="dialog" aria-label="Settings">
+  <fieldset>
+    <legend>How you move</legend>
+    <label><input type="radio" name="move" value="free"> Free walking</label>
+    <label><input type="radio" name="move" value="step"> Step and turn</label>
+    <p class="small">Step and turn moves one block at a time and turns a quarter turn: calmer, and easy with keys alone.</p>
+  </fieldset>
+  <label class="check"><input type="checkbox" id="reduce"> Reduce motion <span class="small">(a quick fade instead of the fall and the swoop through doorways)</span></label>
+  <button id="restart" type="button">Back to the start</button>
+  <p class="small" id="keys"></p>
+  <button id="menuclose" type="button">Done</button>
+</div>
 <p id="note" role="status"></p>
-<script type="module" src="./main.js"></script>
+<script src="./maze.js"></script>
 </body>
 </html>

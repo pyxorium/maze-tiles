@@ -7,7 +7,7 @@
 //   and nothing is drawn beyond them (the next room is drawn there through the opening instead).
 
 import * as THREE from 'three';
-import { geometry } from '../../tile/graph.js';
+import { geometry } from '../../iso/tile/graph.js';
 import { gatesOf } from './walk.js';
 
 const SLAB = 0.35;

@@ -1,0 +1,54 @@
+/* The Escher maze. Colours of the room itself are drawn on the canvas (map.js); this is only the controls. */
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  position: relative;
+  font: 14px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #3a3330;
+  background: #f6eee2;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+#view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: manipulation; }
+
+#bar {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 12px; pointer-events: none; z-index: 2;
+}
+#bar button { pointer-events: auto; }
+#room { margin: 0; font-weight: 600; letter-spacing: 0.02em; opacity: 0.8; text-align: center; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#bar button {
+  font: inherit; font-weight: 600; color: #3a3330;
+  background: rgba(255, 255, 255, 0.72); border: 1px solid rgba(58, 51, 48, 0.18);
+  border-radius: 999px; padding: 6px 14px; min-height: 34px; cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+#bar button:hover { background: rgba(255, 255, 255, 0.92); }
+#bar button:disabled { opacity: 0.4; cursor: default; }
+#bar button:focus-visible, .way:focus-visible { outline: 3px solid #3a3330; outline-offset: 2px; }
+
+#ways { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.way {
+  position: absolute; pointer-events: auto; padding: 0; margin: 0;
+  border: none; border-radius: 50%; background: transparent; cursor: pointer;
+  transform: translate(-50%, -50%);
+}
+body.busy .way { pointer-events: none; cursor: default; }
+
+#mapcard { position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center; background: rgba(40, 34, 30, 0.18); }
+#mapcard[hidden] { display: none; }
+#mapcard .card {
+  background: rgba(255, 252, 247, 0.97); border-radius: 14px; padding: 10px 12px 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18); max-width: calc(100% - 32px); max-height: calc(100% - 80px);
+  display: flex; flex-direction: column; align-items: center;
+}
+#mapcanvas { display: block; max-width: 100%; }
+#mapcard .hint { margin: 4px 0 0; font-size: 12px; opacity: 0.75; text-align: center; }
+
+#note {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+  margin: 0; padding: 7px 14px; border-radius: 999px; max-width: calc(100% - 48px);
+  background: rgba(58, 51, 48, 0.86); color: #fff; font-weight: 500; text-align: center;
+  opacity: 0; transition: opacity 0.25s; pointer-events: none; z-index: 4;
+}
+#note.show { opacity: 1; }

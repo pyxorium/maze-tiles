@@ -7,7 +7,7 @@
 // Stairs gates rise half a block like any step: up-stairs leave the top step (2) for 2.5, down-stairs leave
 // the floor (0) for the first step down (-0.5).
 
-import { geometry, blockedCells } from '../../tile/graph.js';
+import { geometry, blockedCells } from '../../iso/tile/graph.js';
 
 export const DIRS = { ne: [0, -1], se: [1, 0], sw: [0, 1], nw: [-1, 0] };
 export const LEFT_OF = { ne: 'nw', nw: 'sw', sw: 'se', se: 'ne' };

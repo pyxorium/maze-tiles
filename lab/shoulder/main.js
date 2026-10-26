@@ -11,7 +11,7 @@ import GUI from 'lil-gui';
 import { testMap, TEST_ROOMS } from './test-map.js';
 import { buildRoom, buildFigure, srgb } from './world.js';
 import { DIRS, LEFT_OF, RIGHT_OF, gatesOf, heightsOf, step, placement, apply, invert, IDENTITY, nameOf, rot, freeMove, facingOfYaw, cellOf } from './walk.js';
-import { splitTo } from '../../tile/graph.js';
+import { splitTo } from '../../iso/tile/graph.js';
 
 const MAP = testMap();
 const DEFAULTS = {

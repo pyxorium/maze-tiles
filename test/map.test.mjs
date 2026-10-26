@@ -1,9 +1,11 @@
-// The maze's map (tile/map.js) and its rules (tile/graph.js): links are honest, nothing traps you, the three
-// impossible pieces are really there, and "back" follows the trail (cleared by a drop).
+// The 3D maze's map (src/map.js) and its rules (src/graph.js): links are honest, nothing traps you, the three
+// impossible pieces are really there, and the rooms suit over the shoulder (M16). (The isometric step 1's own
+// copy of these tests is iso/test/map.test.mjs.)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAP } from '../tile/map.js';
-import { checkMap, createNav, geometry, findPath, splitTo, wayOf, linkKey, MAX_TRAIL } from '../tile/graph.js';
+import { MAP } from '../src/map.js';
+import { checkMap, createNav, geometry, findPath, splitTo, wayOf, linkKey, MAX_TRAIL, takeable } from '../src/graph.js';
+import { gatesOf, heightsOf, DIRS } from '../src/walk.js';
 
 const clone = (o) => structuredClone(o);
 
@@ -77,13 +79,13 @@ test('the Lookout\'s stairs go down into the loop', () => {
   assert.equal(splitTo(w.to)[0], 'landing3');
 });
 
-test('the Lantern room\'s door is closed in step 1', () => {
+test('the Lantern room\'s door is still closed (step 2 opens it)', () => {
   const door = wayOf(MAP.rooms.lantern, 'door');
   assert.equal(door.closed, true);
   assert.equal(createNav(MAP).target('door'), null);
 });
 
-test('back walks the trail, at most 8 rooms', () => {
+test('the trail (kept by the rules, though the 3D maze has no Back button: M14) holds at most 8 rooms', () => {
   const nav = createNav(MAP);
   nav.commit(nav.target('climb'));                 // courtyard → landing1
   assert.equal(nav.backTarget().toRoom, 'courtyard');
@@ -112,6 +114,64 @@ test('every way on fits its room, and up-flights climb two blocks to the wall', 
     }
   }
   assert.deepEqual(findPath(MAP.rooms.courtyard, [2, 4], [1, 0]).at(-1), [1, 0]);
+});
+
+// ---- M16: the rooms checked for over the shoulder ----
+// Arriving through a way on, how many blocks lie straight ahead before the far edge (walkable cells: floor and
+// steps, not landmarks or holes).
+function clearAhead(roomId, wayId) {
+  const room = MAP.rooms[roomId];
+  const g = gatesOf(room).find((x) => x.way.id === wayId);
+  const d = [-g.dir[0], -g.dir[1]];
+  const h = heightsOf(room);
+  let [x, y] = g.L, n = 0;
+  while (h.has(`${x},${y}`)) { n++; x += d[0]; y += d[1]; }
+  return n;
+}
+
+test('M16: every way in faces at least five clear blocks (the Closet excepted, cramped on purpose)', () => {
+  for (const [id, room] of Object.entries(MAP.rooms)) {
+    for (const w of room.ways) {
+      if (!takeable(w) || w.kind === 'drop' || !w.to) continue;
+      const n = clearAhead(id, w.id);
+      if (id === 'closet') assert.ok(n >= 2, `${id}.${w.id}: ${n}`);
+      else assert.ok(n >= 5, `arriving at ${id}.${w.id} you face ${n} blocks`);
+    }
+  }
+});
+
+test('M16: both ways into the Gallery are at its ends, looking down its 8 blocks', () => {
+  assert.equal(clearAhead('gallery', 'court'), 8);
+  assert.equal(clearAhead('gallery', 'closet'), 8);
+  assert.equal(wayOf(MAP.rooms.gallery, 'closet').side, 'nw');
+  assert.equal(wayOf(MAP.rooms.gallery, 'court').side, 'se');
+  assert.equal(wayOf(MAP.rooms.courtyard, 'gallery').kind, 'door', 'the Courtyard\'s way into the Gallery is a door');
+});
+
+test('M16: the Well room is 5 x 5 with room to walk round its hole; the Lookout is 6 x 5; the Closet stays 2 x 2', () => {
+  assert.deepEqual(MAP.rooms.well.size, [5, 5]);
+  const [hx, hy] = wayOf(MAP.rooms.well, 'hole').at;
+  const h = heightsOf(MAP.rooms.well);
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) assert.ok(h.has(`${hx + dx},${hy + dy}`), 'floor all round the hole');
+  assert.deepEqual(MAP.rooms.lookout.size, [6, 5]);
+  assert.deepEqual(MAP.rooms.closet.size, [2, 2]);
+  assert.equal(clearAhead('lookout', 'down'), 5);
+});
+
+test('M9: the Great Hall\'s obelisk is a dormant waystone', () => {
+  const ob = MAP.rooms.hall.marks.find((m) => m.kind === 'obelisk');
+  assert.ok(ob.waystone);
+  assert.equal(ob.waystone.signpost, undefined, 'it leads nowhere yet');
+  assert.match(ob.waystone.note, /doesn't lead anywhere yet/);
+});
+
+test('the drop\'s landing turns you to face the long way (not into the Cellar\'s stairs)', () => {
+  const l = wayOf(MAP.rooms.cellar, 'landing');
+  assert.equal(l.facing, 'ne');
+  const h = heightsOf(MAP.rooms.cellar);
+  let [x, y] = l.at, n = 0;
+  while (h.has(`${x},${y}`)) { n++; x += DIRS[l.facing][0]; y += DIRS[l.facing][1]; }
+  assert.ok(n >= 3, `${n} blocks ahead`);
 });
 
 // The checker itself catches broken maps.
@@ -148,7 +208,7 @@ test('checkMap catches one-way stairs, stairs that arrive at a door, and steps t
 
 test('checkMap catches a way you can\'t walk to', () => {
   const m = clone(MAP);
-  m.rooms.well.marks.push({ kind: 'blocks', blocks: [[0, 0, 4, 1, 1], [3, 0, 1, 4, 1]] });   // wall off the right column and top row
+  m.rooms.well.marks.push({ kind: 'blocks', blocks: [[0, 0, 5, 1, 1], [4, 0, 1, 5, 1]] });   // wall off the right column and top row
   const p = checkMap(m);
   assert.ok(p.some((x) => /can't walk to|blocked/.test(x)), p.join('\n'));
 });

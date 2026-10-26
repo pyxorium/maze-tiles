@@ -1,0 +1,3 @@
+# The built maze (three.js and src\ in one script): kept byte for byte, so publishing and the
+# up-to-date check see exactly what was built.
+tile/maze.js -text

@@ -4,7 +4,11 @@
 //   node scripts/publish.mjs              publish the maze if it isn't published yet
 //   node scripts/publish.mjs --dry-run    show what would be published; ask nothing, write nothing
 //   node scripts/publish.mjs --again      publish it again, as a new record (a new address), after a change
+//   add --iso to any of these for the isometric step 1 (the frozen snapshot) instead: never needed unless you
+//   choose to publish it too
 //
+// Before publishing the 3D maze it checks that tile\maze.js is built from the current src\ (it rebuilds in
+// memory with the Foundry's esbuild and compares); if not, it stops and says to run `npm run build`.
 // It shows what will be published, asks for the account's app password (hidden as you type) and once more
 // before writing. The tile is always created as a new record (never overwriting); the record and every file are
 // read back and checked. What was published is written to published.json (commit it).
@@ -13,6 +17,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ROOT, TILES, publishFiles, cspOf } from './tiles.mjs';
+import { ISO_TILES } from '../iso/tiles.mjs';
 import { rawCid } from './lib/cid.js';
 import { publishTile } from './lib/tile-record.js';
 
@@ -33,15 +38,25 @@ async function getJson(fetchImpl, url, init) {
   return body;
 }
 
-export async function tileToPublish(id) {
-  const files = publishFiles(id);
+export async function tileToPublish(id, tiles = TILES) {
+  const files = publishFiles(id, tiles);
   for (const f of files) f.cid = await rawCid(f.bytes);
   const page = new TextDecoder().decode(files.find((f) => f.path === '/').bytes);
-  const t = TILES[id];
+  const t = tiles[id];
   return { id, name: t.name, description: t.description, sizing: t.sizing, generator: GENERATOR, csp: cspOf(page), files };
 }
 
-export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = console.log, dryRun = false, again = false,
+// Is tile/maze.js what src/ builds to now? true, false, or null when the build can't run here.
+export async function bundleCurrent() {
+  try {
+    const { build, OUT } = await import('./build.mjs');
+    const { js } = await build({ write: false });
+    return readFileSync(OUT, 'utf8').replace(/\r\n/g, '\n') === js.replace(/\r\n/g, '\n');
+  } catch { return null; }
+}
+
+export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = console.log, dryRun = false, again = false, tiles = TILES,
+  checkBundle = bundleCurrent,
   readPublished = () => (existsSync(PUBLISHED_FILE) ? JSON.parse(readFileSync(PUBLISHED_FILE, 'utf8')) : {}),
   writePublished = (o) => writeFileSync(PUBLISHED_FILE, JSON.stringify(o, null, 2) + '\n'),
   now = () => new Date().toISOString() }) {
@@ -54,7 +69,12 @@ export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = cons
 
   const published = readPublished() || {};
   const todo = [];
-  for (const id of Object.keys(TILES)) if (again || !published[id]) todo.push(await tileToPublish(id));
+  for (const id of Object.keys(tiles)) if (again || !published[id]) todo.push(await tileToPublish(id, tiles));
+  if (todo.some((t) => t.id === 'maze')) {
+    const current = await checkBundle();
+    if (current === false) throw new Error('tile\\maze.js is older than src\\: run `npm run build` first (then commit tile\\maze.js). Nothing was published.');
+    if (current === null) log('(Could not rebuild tile\\maze.js here to check it is up to date: make sure you ran `npm run build` after changing src\\.)');
+  }
 
   log(`\nAccount: @${handle} (${ACCOUNT}), server ${pds}`);
   if (!todo.length) { log('\nAlready published (see published.json). Use --again to publish it as a new record after a change.'); return { changed: false, published }; }
@@ -102,7 +122,7 @@ export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = cons
     log(`       or: https://lexicographer.space/@${handle}/${r.rkey}`);
   }
   log('\nPublished, and read back to check.');
-  if (published.maze && again) log(`The earlier record (${published.maze.uri}) is still there: delete it in PDSls once you're happy with the new one.`);
+  for (const t of todo) if (published[t.id] && again) log(`The earlier record (${published[t.id].uri}) is still there: delete it in PDSls once you're happy with the new one.`);
   log('Delete this app password (Bluesky: Settings > Privacy and security > App passwords).');
   return { changed: true, published: out };
 }
@@ -120,7 +140,7 @@ function makeAsk() {
 if (process.argv[1] && resolve(process.argv[1]).toLowerCase() === fileURLToPath(import.meta.url).toLowerCase()) {
   const args = process.argv.slice(2);
   const io = makeAsk();
-  runPublish({ ask: io.ask, askHidden: io.askHidden, dryRun: args.includes('--dry-run'), again: args.includes('--again') })
+  runPublish({ ask: io.ask, askHidden: io.askHidden, dryRun: args.includes('--dry-run'), again: args.includes('--again'), ...(args.includes('--iso') ? { tiles: ISO_TILES } : {}) })
     .catch((err) => { console.error(`\n${err.message}`); process.exitCode = 1; })
     .finally(() => io.close());
 }

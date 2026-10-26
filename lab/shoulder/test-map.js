@@ -1,8 +1,8 @@
-// test-map.js: the look test's three rooms, taken from the maze's own map (tile/map.js). Two changes: the
+// test-map.js: the look test's three rooms, taken from the isometric step 1's map (iso/tile/map.js, frozen). Two changes: the
 // Courtyard's way into the Gallery is a door here (it's a gap in the wall in step 1), so the test has a door,
 // a pair of stairs and a walkway to try; and the Gallery's walkway is at its short end. Ways into rooms outside the
 // test stay drawn but say so.
-import { MAP } from '../../tile/map.js';
+import { MAP } from '../../iso/tile/map.js';
 
 export const TEST_ROOMS = ['courtyard', 'gallery', 'landing1'];
 
