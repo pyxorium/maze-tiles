@@ -1,0 +1,16 @@
+{
+  "name": "maze-tiles",
+  "version": "0.1.0",
+  "description": "The Escher maze: an impossible, wander-around world inside one web tile (a proof of concept for thunderbird.cafe)",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node dev/serve.mjs",
+    "test": "node --test test/*.test.mjs",
+    "publish-tile": "node scripts/publish.mjs"
+  }
+}

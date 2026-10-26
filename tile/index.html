@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: data:; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Escher maze</title>
+<link rel="stylesheet" href="./maze.css">
+</head>
+<body>
+<canvas id="view" aria-hidden="true"></canvas>
+<header id="bar">
+  <button id="back" type="button" title="Back (B)" aria-keyshortcuts="B"><span aria-hidden="true">↶</span> Back</button>
+  <p id="room" aria-live="polite"></p>
+  <button id="mapbtn" type="button" title="Map (M)" aria-keyshortcuts="M" aria-expanded="false" aria-controls="mapcard">Map</button>
+</header>
+<div id="ways" role="group" aria-label="Ways on from this room"></div>
+<div id="mapcard" hidden>
+  <div class="card" role="dialog" aria-label="Map" aria-modal="false">
+    <canvas id="mapcanvas" role="img" aria-label="Rooms you've found and the ways you've taken"></canvas>
+    <p class="hint">Rooms you've found. Lines are ways you've taken; arrows point up.</p>
+  </div>
+</div>
+<p id="note" role="status"></p>
+<script type="module" src="./main.js"></script>
+</body>
+</html>
