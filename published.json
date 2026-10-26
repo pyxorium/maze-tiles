@@ -1,0 +1,39 @@
+{
+  "account": "did:plc:6vxjigxrqizmbo56gojxico3",
+  "handle": "thunderbird.cafe",
+  "lexicons": {
+    "cafe.thunderbird.way.place": {
+      "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/com.atproto.lexicon.schema/cafe.thunderbird.way.place",
+      "cid": "bafyreigawujq3a4qtir6mepbu3yk4owndjwkb7xd6xuwyoi53nkyknsloe",
+      "text": "{\"lexicon\":1,\"id\":\"cafe.thunderbird.way.place\",\"description\":\"A place: a stable name for a web tile that travellers can go to, whatever version of the tile is current. Ways between tiles (thunderbird.cafe, v 1): a tile lists its exits and entrances in its /ways.json; each exit names a signpost (cafe.thunderbird.way.signpost) that says where it leads; signposts point at places. Republishing a tile updates its place, so nothing pointing at the place has to change.\",\"defs\":{\"main\":{\"type\":\"record\",\"description\":\"The record key is the tile's short id, chosen once and never reused (e.g. \\\"maze\\\").\",\"key\":\"any\",\"record\":{\"type\":\"object\",\"required\":[\"tile\",\"cid\",\"updatedAt\"],\"properties\":{\"tile\":{\"type\":\"string\",\"format\":\"at-uri\",\"description\":\"The tile's current record (ing.dasl.masl).\"},\"cid\":{\"type\":\"string\",\"format\":\"cid\",\"description\":\"That record's exact version, so a host opens exactly what was meant.\"},\"name\":{\"type\":\"string\",\"maxLength\":300,\"maxGraphemes\":100,\"description\":\"A name to show on cards.\"},\"updatedAt\":{\"type\":\"string\",\"format\":\"datetime\"}}}}}}",
+      "publishedAt": "2026-10-26T16:55:11.446Z"
+    },
+    "cafe.thunderbird.way.signpost": {
+      "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/com.atproto.lexicon.schema/cafe.thunderbird.way.signpost",
+      "cid": "bafyreihmydw5wtt2n57iop33iw2i3goorvkzderq6iq7pzcqy2f3obikqu",
+      "text": "{\"lexicon\":1,\"id\":\"cafe.thunderbird.way.signpost\",\"description\":\"A signpost: where one exit of a web tile leads (ways between tiles, thunderbird.cafe, v 1; see cafe.thunderbird.way.place). The tile names its signpost in its /ways.json; only a host (the page that holds the tile) reads it, since a tile can't reach the network. Change it any time: the tile never has to be republished.\",\"defs\":{\"main\":{\"type\":\"record\",\"description\":\"The record key is the tile's id and the exit's id, joined by a dot (e.g. \\\"maze.obelisk\\\").\",\"key\":\"any\",\"record\":{\"type\":\"object\",\"required\":[\"to\",\"updatedAt\"],\"properties\":{\"to\":{\"type\":\"array\",\"maxLength\":12,\"items\":{\"type\":\"ref\",\"ref\":\"#destination\"},\"description\":\"Where the exit leads. Empty: dormant, it leads nowhere yet. One: straight there. Several: the host offers a choice (\\\"pick a door\\\").\"},\"note\":{\"type\":\"string\",\"maxLength\":300,\"maxGraphemes\":100,\"description\":\"A line the host can show, e.g. \\\"Under construction\\\".\"},\"updatedAt\":{\"type\":\"string\",\"format\":\"datetime\"}}}},\"destination\":{\"type\":\"object\",\"description\":\"Exactly one of place or tile.\",\"properties\":{\"place\":{\"type\":\"string\",\"format\":\"at-uri\",\"description\":\"A place record (cafe.thunderbird.way.place): the usual case.\"},\"tile\":{\"type\":\"string\",\"format\":\"at-uri\",\"description\":\"A tile record (ing.dasl.masl), for a tile with no place record.\"},\"entrance\":{\"type\":\"string\",\"maxLength\":64,\"description\":\"Which entrance to arrive at, as named in that tile's /ways.json.\"},\"label\":{\"type\":\"string\",\"maxLength\":300,\"maxGraphemes\":100,\"description\":\"A label for the choice, when there are several.\"}}}}}",
+      "publishedAt": "2026-10-26T16:55:11.697Z"
+    }
+  },
+  "maze": {
+    "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3mys6stpsyc2b",
+    "cid": "bafyreibd5ougkwa3qgqy45ehxskce462r25t6x7z32q73k4nm57fujbioy",
+    "manifestCid": "bafyreiapgs53vd4cyjfftk3stayw56lri5citzq6kpofpysy4u2wje3lia",
+    "publishedAt": "2026-10-26T16:55:14.538Z"
+  },
+  "places": {
+    "maze": {
+      "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.place/maze",
+      "cid": "bafyreiepngso4mcs7drc3rskwnhu4gktvbjxez5hcdo5o2cl6yhydnqd3q",
+      "tile": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3mys6stpsyc2b",
+      "tileCid": "bafyreibd5ougkwa3qgqy45ehxskce462r25t6x7z32q73k4nm57fujbioy",
+      "updatedAt": "2026-10-26T16:55:17.141Z"
+    }
+  },
+  "signposts": {
+    "maze.obelisk": {
+      "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.signpost/maze.obelisk",
+      "createdAt": "2026-10-26T16:55:17.313Z"
+    }
+  }
+}
