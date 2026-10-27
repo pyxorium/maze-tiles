@@ -457,7 +457,10 @@ window.addEventListener('resize', resize);
 
 // The panel (lil-gui): double-click a setting's name to reset it; each section has its own reset.
 const gui = new GUI({ title: 'Look test' });
-const watch = (c, then) => { c.onChange(() => { save(); apply2(); if (then) then(); }); c.domElement.addEventListener('dblclick', () => c.reset()); return c; };
+// Resets go to the starting settings (DEFAULTS), not to what the panel was built with (the saved ones).
+const toStart = (c) => { if (Object.hasOwn(DEFAULTS, c.property)) c.setValue(DEFAULTS[c.property]); };
+const resetFolder = (f) => f.controllersRecursive().forEach(toStart);
+const watch = (c, then) => { c.onChange(() => { save(); apply2(); if (then) then(); }); c.domElement.addEventListener('dblclick', () => toStart(c)); return c; };
 function apply2() { camera.fov = params.fov; camera.updateProjectionMatrix(); }
 const fc = gui.addFolder('Camera');
 watch(fc.add(params, 'distance', 0.8, 8, 0.05).name('distance behind'));
@@ -469,7 +472,7 @@ watch(fc.add(params, 'fov', 30, 100, 1).name('field of view'));
 watch(fc.add(params, 'follow', 1, 30, 0.5).name('follow speed'));
 watch(fc.add(params, 'duck').name('duck through doors'));
 watch(fc.add(params, 'overhead', 0, 1.5, 0.05).name('rise when held close'));
-fc.add({ reset: () => fc.reset() }, 'reset').name('↺ reset camera');
+fc.add({ reset: () => resetFolder(fc) }, 'reset').name('↺ reset camera');
 const fm = gui.addFolder('Moving');
 watch(fm.add(params, 'movement', { 'step and turn': 'step', 'free walking': 'free' }).name('how you move'), () => switchMovement());
 watch(fm.add(params, 'stepTime', 0.08, 0.8, 0.01).name('step: step time (s)'));
@@ -479,12 +482,12 @@ watch(fm.add(params, 'walkSpeed', 0.6, 6, 0.1).name('free: walking speed'));
 watch(fm.add(params, 'turnSpeed', 30, 360, 5).name('free: turning (°/s)'));
 watch(fm.add(params, 'mouseTurn').name('free: drag to turn'));
 watch(fm.add(params, 'doorAssist', 0, 3, 0.1).name('free: ease into doorways'));
-fm.add({ reset: () => fm.reset() }, 'reset').name('↺ reset moving');
+fm.add({ reset: () => resetFolder(fm) }, 'reset').name('↺ reset moving');
 const ft = gui.addFolder('Ways through');
 watch(ft.add(params, 'mode', { 'seamless (see through, no cut)': 'seamless', 'fade': 'fade' }).name('doors and stairs'), () => restartKeepPlace());
 watch(ft.add(params, 'fadeTime', 0.1, 1.2, 0.01).name('fade time (s)'));
 watch(ft.add(params, 'showMarkers').name('floor markers'));
-ft.add({ reset: () => ft.reset() }, 'reset').name('↺ reset');
+ft.add({ reset: () => resetFolder(ft) }, 'reset').name('↺ reset');
 const fs = gui.addFolder('Snapshots');
 const snaps = { A: null, B: null };
 fs.add({ a: () => { snaps.A = { ...params }; note('Saved as A'); } }, 'a').name('save A');

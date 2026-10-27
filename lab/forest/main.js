@@ -30,6 +30,7 @@ const STORE = 'winter-forest-look-test';
 const params = { ...DEFAULTS, ...load() };
 function load() { try { return JSON.parse(localStorage.getItem(STORE) || '{}'); } catch { return {}; } }
 function save() { try { localStorage.setItem(STORE, JSON.stringify(params)); } catch { /* private window */ } }
+function forget() { try { localStorage.removeItem(STORE); } catch { /* private window */ } }
 const col = (hex) => new THREE.Color(hex);
 
 // ---- renderer, scene, camera --------------------------------------------------------------------------------------
@@ -428,9 +429,11 @@ addEventListener('resize', resize);
 // ---- the panel (lil-gui): double-click a setting's name to reset it; each section has its own reset -----------------
 const gui = new GUI({ title: 'Winter Forest' });
 if (innerWidth < 700) gui.close();
-const watch = (c, then = applyLook) => { c.onChange(() => { save(); then(); }); c.domElement.addEventListener('dblclick', () => { c.reset(); }); return c; };
+// Resets go to the starting settings (DEFAULTS), not to what the panel was built with (the saved ones).
+const toStart = (c) => { if (Object.hasOwn(DEFAULTS, c.property)) c.setValue(DEFAULTS[c.property]); };
+const watch = (c, then = applyLook) => { c.onChange(() => { save(); then(); }); c.domElement.addEventListener('dblclick', () => { toStart(c); }); return c; };
 const folder = (name) => { const f = gui.addFolder(name); return f; };
-const resetBtn = (f, also) => f.add({ r: () => { f.reset(); if (also) also(); } }, 'r').name('↺ reset');
+const resetBtn = (f, also) => f.add({ r: () => { f.controllersRecursive().forEach(toStart); if (also) also(); } }, 'r').name('↺ reset');
 const fn = folder('Night');
 watch(fn.addColor(params, 'skyTop').name('sky overhead'));
 watch(fn.addColor(params, 'skyHorizon').name('sky at the horizon'));
@@ -508,7 +511,7 @@ fx.add({ a: () => { if (snaps.A) { setAll(snaps.A); note('A'); } else note('Noth
 fx.add({ b: () => { snaps.B = { ...params }; note('Saved as B'); } }, 'b').name('save B');
 fx.add({ b: () => { if (snaps.B) { setAll(snaps.B); note('B'); } else note('Nothing saved as B yet'); } }, 'b').name('load B');
 fx.add({ c: copySettings }, 'c').name('copy settings');
-fx.add({ r: () => setAll(DEFAULTS) }, 'r').name('everything back to the start');
+fx.add({ r: () => { setAll(DEFAULTS); forget(); } }, 'r').name('everything back to the start');
 fx.add({ r: restart }, 'r').name('back to the lamp post (R)');
 for (const f of [fs, fg, ft, ff, fc, fm, fa, fx]) f.close();
 function setAll(o) { Object.assign(params, o); gui.controllersRecursive().forEach((c) => c.updateDisplay()); save(); makeSnow(); regrow(); applyLook(); sound.apply(); showSoundButton(); }
