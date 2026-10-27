@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Winter Forest: look test</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #05070f; font: 14px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; color: #e8ecf5; }
+  #stage, #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #hud { position: absolute; left: 12px; top: 10px; pointer-events: none; }
+  #where { font-weight: 600; font-size: 15px; background: rgba(10,14,26,0.62); padding: 5px 12px; border-radius: 999px; display: inline-block; }
+  #help { margin-top: 6px; font-size: 12.5px; background: rgba(10,14,26,0.55); padding: 6px 10px; border-radius: 10px; max-width: 360px; }
+  #note { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 7px 14px; border-radius: 999px; background: rgba(10,14,26,0.8); color: #fff; opacity: 0; transition: opacity .25s; pointer-events: none; max-width: calc(100% - 40px); text-align: center; }
+  #note.show { opacity: 1; }
+  #stick { position: absolute; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.3); pointer-events: none; }
+  #knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(255,255,255,0.45); }
+  #copybox { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 320px; height: 260px; z-index: 5; }
+  .lil-gui.root { position: absolute; top: 0; right: 0; max-height: 100%; overflow-y: auto; }
+  #soundbtn { pointer-events: auto; vertical-align: top; margin-left: 6px; padding: 5px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.25); background: rgba(10,14,26,0.62); color: #e8ecf5; font: inherit; cursor: pointer; }
+  #soundbtn[aria-pressed="false"] { opacity: 0.7; text-decoration: line-through; }
+  #phonehelp { display: none; position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); font-size: 12.5px; text-align: center; background: rgba(10,14,26,0.62); padding: 6px 12px; border-radius: 12px; pointer-events: none; transition: opacity .6s; }
+  #phonehelp.gone { opacity: 0; }
+  @media (max-width: 640px) { #help { display: none; } #phonehelp { display: block; } #soundbtn { display: block; margin: 8px 0 0; } }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="hud"><div id="where">Winter Forest · the clearing</div> <button id="soundbtn" type="button" aria-pressed="true">Sound on</button>
+  <div id="help"><b>Hold ↑ / W</b> to walk · <b>↓ / S</b> back · <b>← → / A D</b> turn · or drag across the view to
+  turn · <b>R</b> back to the lamp post. On a phone, put your left thumb down in the lower left to walk. Four paths
+  lead out of the clearing; in this test they go a little way into the trees and stop. Sound starts with your first step (the button up here
+  turns it off).</div></div>
+<p id="phonehelp">Put your left thumb down in the lower left to walk · drag on the right to turn</p>
+<div id="stick" hidden><div id="knob"></div></div>
+<p id="note" role="status"></p>
+<textarea id="copybox" hidden></textarea>
+<script>/*BUNDLE*/</script>
+</body>
+</html>
