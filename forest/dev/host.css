@@ -1,0 +1,8 @@
+body { font: 14px/1.4 system-ui, sans-serif; margin: 20px; background: #1d2230; color: #e8ecf5; }
+iframe { display: block; border: 0; border-radius: 10px; margin: 12px 0 18px; background: #000; }
+fieldset { border: 1px solid #3a4258; border-radius: 10px; margin: 0 0 10px; display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+legend { padding: 0 6px; font-weight: 600; }
+button { font: inherit; padding: 4px 12px; border-radius: 999px; border: 1px solid #556; background: #2c3346; color: #fff; cursor: pointer; }
+select { font: inherit; }
+#log { font: 13px ui-monospace, monospace; }
+h2 { font-size: 16px; margin: 12px 0 4px; }

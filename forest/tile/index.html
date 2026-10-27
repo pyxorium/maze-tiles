@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: data:; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Winter Forest</title>
+<link rel="stylesheet" href="./forest.css">
+</head>
+<body>
+<div id="stage" hidden></div>
+<header id="bar">
+  <p id="where" aria-live="polite"></p>
+  <div class="buttons">
+    <button id="soundbtn" type="button" aria-pressed="true">Sound on</button>
+    <button id="gearbtn" type="button" title="Settings" aria-label="Settings" aria-expanded="false" aria-controls="menu"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg></button>
+  </div>
+</header>
+<p id="hint" aria-hidden="true"></p>
+<div id="stick" hidden><div id="knob"></div></div>
+<div id="menu" hidden role="dialog" aria-label="Settings">
+  <label class="check"><input type="checkbox" id="reduce"> Reduce motion <span class="small">(a quick fade instead of the doors, the ripple and the like)</span></label>
+  <button id="tolamp" type="button">Back to the lamp post</button>
+  <p class="small">Hold ↑ or W to walk, ↓ or S to back up, ← → or A D to turn, or drag across the view. On a phone, put your left thumb down in the lower left to walk; drag on the right to turn.</p>
+  <button id="menuclose" type="button">Done</button>
+</div>
+<p id="note" role="status"></p>
+<div id="fade"><p id="fadetext"></p></div>
+<div id="postcard" hidden>
+  <img src="./banner.png" alt="A lamp post glowing in a snowy clearing at night, seen through spruces">
+  <canvas id="pcsnow" aria-hidden="true"></canvas>
+  <p id="pcline">This place is reached through other places.</p>
+</div>
+<script src="./forest.js"></script>
+</body>
+</html>

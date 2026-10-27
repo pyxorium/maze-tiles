@@ -1,0 +1,237 @@
+// A browser check of Winter Forest, step 1 (Playwright with Chromium; run in the build chat's sandbox, or anywhere
+// Playwright is installed): node forest/test/browser/check.mjs [folder for screenshots]
+// It serves the tile as forest/dev/serve.mjs does (with the tile's security policy) and tries it:
+//   - on its own (no host): the postcard and its line, nothing else (W16, W23)
+//   - with the stand-in host (forest/dev/host.html): hello naming the forest's ways, the status, arriving at each of
+//     the four entrances (W19) and standing where they say, facing back towards the clearing
+//   - walking (holding ↑, as a player) up the wardrobe's lane into the doors: dormant, the note; open, the doors swing,
+//     white, way.leave with exit "wardrobe" and a facing; the arch the same (the ripple, pale blue); the great tree's
+//     mouth and the library's door (step 2: a note)
+//   - a way that's blocked (no host takes you on): back at the portal, "The way is blocked."
+//   - coming back through the same portal (the host's round trip), "reduce motion", a phone-sized window
+// WebGL runs in software here (SwiftShader), a few frames a second, so it waits generously.
+import { createRequire } from 'node:module';
+import { mkdirSync } from 'node:fs';
+import path from 'node:path';
+import { startDev } from '../../dev/serve.mjs';
+import * as L from '../../src/layout.js';
+
+const require = createRequire(import.meta.url);
+let playwright;
+try { playwright = require('playwright'); } catch { playwright = require('/opt/npm-tools/node_modules/playwright'); }
+const OUT = process.argv[2] || null;
+if (OUT) mkdirSync(OUT, { recursive: true });
+
+const PORT = 5218;
+const server = await startDev({ port: PORT, quiet: true });
+const browser = await playwright.chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+let failures = 0;
+const ok = (cond, msg) => { console.log(`${cond ? 'ok  ' : 'FAIL'} ${msg}`); if (!cond) failures++; };
+const pages = [];
+
+async function newPage(opts = {}) {
+  const page = await browser.newPage({ viewport: { width: 980, height: 900 }, ...opts });
+  page.errors = [];
+  page.on('pageerror', (e) => page.errors.push(e.message));
+  page.on('console', (m) => { if (m.type() === 'error' || /Content.Security.Policy|Refused/.test(m.text())) page.errors.push(m.text()); });
+  pages.push(page);
+  return page;
+}
+// The stand-in host with the forest in its frame. query: e.g. 'open=wardrobe&roundtrip=0'
+async function hosted(query = '', opts) {
+  const page = await newPage(opts);
+  await page.goto(`http://127.0.0.1:${PORT}/dev/host.html?${query}`);
+  await page.waitForFunction(() => window.__host, null, { timeout: 30000 });
+  page.forest = () => page.frame({ url: new RegExp(`${PORT}/$`) });
+  await page.forest().waitForFunction(() => window.__forest, null, { timeout: 60000 });
+  return page;
+}
+const st = (page) => page.forest().evaluate(() => window.__forest.state());
+const hostLog = (page) => page.evaluate(() => window.__host.log);
+const shot = async (page, name) => { if (!OUT) return; const clip = await page.locator('#forest').boundingBox(); await page.screenshot({ path: path.join(OUT, `${name}.png`), clip, timeout: 60000 }); };
+const noteText = (page) => page.forest().evaluate(() => { const n = document.getElementById('note'); return n.classList.contains('show') ? n.textContent : ''; });
+const until = async (page, fn, arg, ms = 30000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn(page, arg)) return true; await page.waitForTimeout(150); } return false; };
+const near = (s, e, d = 0.15) => Math.hypot(s.x - e.x, s.z - e.z) < d;
+const arrive = (page, id) => page.evaluate((id) => window.__host.arrive(id), id);
+// Put the figure somewhere (the hook), then walk forwards by holding ↑ until fn says stop.
+const jump = (page, x, z, yaw) => page.forest().evaluate(([x, z, yaw]) => window.__forest.jump(x, z, yaw), [x, z, yaw]);
+async function holdUp(page, stop, ms = 15000) {
+  await page.locator('#forest').click({ position: { x: 600, y: 240 } });
+  await page.forest().evaluate(() => { window.__forest.held.forward = true; });
+  const done = await until(page, stop, null, ms);
+  await page.forest().evaluate(() => { window.__forest.held.forward = false; });
+  return done;
+}
+const towards = (id, u, v = 0) => { const f = L.FRAMES[id]; const [x, z] = L.world(f, u, v); return { x, z, yaw: L.yawFacing(f.d[0], f.d[1]) }; };
+
+// ---- 1. On its own: the postcard ------------------------------------------------------------------------------------------
+{
+  const page = await newPage({ viewport: { width: 640, height: 480 } });
+  const res = await page.goto(`http://127.0.0.1:${PORT}/`);
+  ok(/script-src 'self'/.test(res.headers()['content-security-policy'] || ''), 'the tile is served with its own security policy');
+  await page.waitForFunction(() => window.__forest, null, { timeout: 60000 });
+  await page.waitForTimeout(2200);
+  const s = await page.evaluate(() => ({ card: !document.getElementById('postcard').hidden, line: document.getElementById('pcline').classList.contains('show'), lineText: document.getElementById('pcline').textContent, stage: document.getElementById('stage').hidden, img: document.querySelector('#postcard img').naturalWidth, bar: getComputedStyle(document.getElementById('bar')).display, ways: window.__forest.state().ways, entered: window.__forest.state().entered }));
+  ok(s.card && s.stage && !s.entered, 'opened on its own: the postcard, and the forest not entered');
+  ok(s.img === 1280, 'the postcard is the card picture (banner.png, 1280 wide)');
+  ok(s.line && s.lineText === 'This place is reached through other places.', 'the quiet line shows (W23)');
+  ok(s.bar === 'none', 'no buttons on the postcard');
+  ok(s.ways === 'plain', 'no host: plain');
+  if (OUT) await page.screenshot({ path: path.join(OUT, '01-postcard.png') });
+  ok(page.errors.length === 0, `no errors on the postcard ${page.errors.join(' | ')}`);
+  await page.close();          // software WebGL: one page at a time, or the next one stalls
+}
+
+// ---- 2. A host that never sends anyone in: still the postcard -------------------------------------------------------------
+{
+  const page = await hosted('');
+  await page.waitForTimeout(2500);
+  const s = await st(page);
+  const log = await hostLog(page);
+  ok(log.length >= 1 && log[0].kind === 'hello' && log[0].tile === 'winter-forest' && log[0].ways === '/ways.json', 'hello names the forest and its ways.json');
+  ok(s.ways === 'host' && s.exits.wardrobe === 'open' && s.exits.slide === 'open', 'the host\'s status is taken (all open)');
+  ok(!s.entered && await page.forest().evaluate(() => !document.getElementById('postcard').hidden), 'a host that only says hello still shows the postcard (only an arrival lets you in)');
+  // ---- 3. Arriving at each entrance (W19) -----------------------------------------------------------------------------------
+  for (const id of ['lamppost', 'wardrobe', 'tree-door', 'arch']) {
+    await arrive(page, id);
+    const arrived = await until(page, async (p) => (await st(p)).phase === 'walking', null, 20000);
+    const s2 = await st(page);
+    ok(arrived && near(s2, L.ENTRANCES[id]) && Math.abs(s2.yaw - L.ENTRANCES[id].yaw) < 0.01, `arrive at "${id}": standing at its spot, facing the clearing (${s2.area})`);
+    await page.waitForTimeout(800);
+    if (id === 'wardrobe') {
+      const c = (await st(page)).cam, u = L.local(L.FRAMES.wardrobe, c[0], c[1])[0];
+      ok(u < -0.3, `arrive at "wardrobe": the camera stays on the lane's side of the doors (u ${u.toFixed(2)})`);
+    }
+    await shot(page, `02-arrive-${id}`);
+  }
+  ok(await page.forest().evaluate(() => document.getElementById('postcard').hidden && !document.getElementById('stage').hidden), 'once in, the postcard is gone and the forest is drawn');
+  ok(page.errors.length === 0, `no errors arriving ${page.errors.join(' | ')}`);
+  await page.close();          // software WebGL: one page at a time, or the next one stalls
+}
+
+// ---- 4. The wardrobe and the arch, dormant: walking into them says so -----------------------------------------------------
+{
+  const page = await hosted('open=slide&roundtrip=0');
+  await arrive(page, 'lamppost');
+  await until(page, async (p) => (await st(p)).phase === 'walking');
+  for (const id of ['wardrobe', 'arch']) {
+    const a = towards(id, -2.2);
+    await jump(page, a.x, a.z, a.yaw);
+    await page.waitForTimeout(400);
+    let said = '';
+    await holdUp(page, async (p) => (said = await noteText(p)) !== '', 15000);
+    const s = await st(page);
+    ok(said === "This doesn't lead anywhere yet." && s.phase === 'walking', `${id}, dormant: "This doesn't lead anywhere yet.", and you stay (${said})`);
+    ok(L.local(L.FRAMES[id], s.x, s.z)[0] < -0.25, `${id}, dormant: it stops you`);
+    await shot(page, `03-dormant-${id}`);
+  }
+  const s = await st(page);
+  ok(s.wardrobeGlow === 0 && s.archOpen === 0, 'dormant looks: no light between the doors, the arch only shimmers');
+  // The great tree's mouth and the library's door: built in step 2.
+  for (const [id, text] of [['tree-door', 'The way into the great tree is still being built.'], ['slide', 'The library is still being built.']]) {
+    const a = towards(id, -2.0);
+    await jump(page, a.x, a.z, a.yaw);
+    await page.waitForTimeout(400);
+    let said = '';
+    await holdUp(page, async (p) => (said = await noteText(p)) !== '', 15000);
+    ok(said === text, `${id}: "${text}" (step 2)`);
+  }
+  ok((await hostLog(page)).every((m) => m.kind !== 'leave'), 'nothing dormant sends way.leave');
+  ok(page.errors.length === 0, `no errors ${page.errors.join(' | ')}`);
+  await page.close();          // software WebGL: one page at a time, or the next one stalls
+}
+
+// ---- 5. Open: going through the wardrobe and the arch; way.leave; a blocked way; coming back ------------------------------
+{
+  const page = await hosted('roundtrip=0');
+  await arrive(page, 'lamppost');
+  await until(page, async (p) => (await st(p)).phase === 'walking');
+  ok((await st(page)).wardrobeGlow === 1 && (await st(page)).archOpen === 1, 'open looks: the line of light, the arch\'s view');
+  // The wardrobe: up the lane, into the doors.
+  const w = towards('wardrobe', -3.0);
+  await jump(page, w.x, w.z, w.yaw);
+  await page.waitForTimeout(600);
+  await shot(page, '04-wardrobe-open');
+  await holdUp(page, async (p) => (await st(p)).phase !== 'walking', 15000);
+  ok((await st(page)).anim === 'through-wardrobe', 'wardrobe, open: walking into the doors starts going through');
+  await page.waitForTimeout(900);
+  await shot(page, '05-wardrobe-through');
+  await until(page, async (p) => (await hostLog(p)).some((m) => m.kind === 'leave'), null, 20000);
+  const leave = (await hostLog(page)).find((m) => m.kind === 'leave');
+  ok(leave && leave.exit === 'wardrobe' && ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'].includes(leave.facing) && Object.keys(leave).sort().join() === 'exit,facing,kind,v', `way.leave says the exit and a facing, nothing else (${JSON.stringify(leave)})`);
+  ok((await st(page)).phase === 'leaving' && await page.forest().evaluate(() => document.getElementById('fadetext').textContent === 'On your way…'), 'then "On your way…" while the host takes you on');
+  // Nobody takes us on: after a while, back at the wardrobe, "The way is blocked."
+  const back = await until(page, async (p) => (await st(p)).phase !== 'leaving', null, 20000);
+  await page.waitForTimeout(400);
+  const s = await st(page);
+  ok(back && near(s, L.ENTRANCES.wardrobe) && (await noteText(page)) === 'The way is blocked.', 'a blocked way: back inside the wardrobe\'s doors, "The way is blocked." (W26)');
+  // The arch: from its glade, walk under it.
+  const a = towards('arch', -2.6, 0.2);
+  await jump(page, a.x, a.z, a.yaw);
+  await page.waitForTimeout(600);
+  await shot(page, '06-arch-open');
+  await holdUp(page, async (p) => (await st(p)).phase !== 'walking', 15000);
+  ok((await st(page)).anim === 'through-arch', 'arch, open: walking under it starts going through');
+  await page.waitForTimeout(1000);
+  await shot(page, '07-arch-through');
+  await until(page, async (p) => (await hostLog(p)).filter((m) => m.kind === 'leave').length === 2, null, 20000);
+  ok((await hostLog(page)).filter((m) => m.kind === 'leave')[1]?.exit === 'arch', 'way.leave with exit "arch"');
+  // The host brings you back through the arch.
+  await arrive(page, 'arch');
+  await until(page, async (p) => (await st(p)).phase === 'walking', null, 20000);
+  ok(near(await st(page), L.ENTRANCES.arch), 'coming back through the arch: out from under it, in its glade');
+  ok(page.errors.length === 0, `no errors ${page.errors.join(' | ')}`);
+  await page.close();          // software WebGL: one page at a time, or the next one stalls
+}
+
+// ---- 6. The host's round trip, and reduce motion ----------------------------------------------------------------------------
+{
+  const page = await hosted('open=wardrobe');
+  await arrive(page, 'lamppost');
+  await until(page, async (p) => (await st(p)).phase === 'walking');
+  await page.forest().evaluate(() => { document.getElementById('gearbtn').click(); document.getElementById('reduce').click(); document.getElementById('menuclose').click(); });
+  ok((await st(page)).reduceMotion === true, 'reduce motion can be turned on in the menu');
+  const w = towards('wardrobe', -1.5);
+  await jump(page, w.x, w.z, w.yaw);
+  await page.waitForTimeout(400);
+  await holdUp(page, async (p) => (await st(p)).phase !== 'walking', 15000);
+  ok((await st(page)).anim === 'fade-out', 'with reduce motion, going through is a plain fade');
+  await until(page, async (p) => (await hostLog(p)).some((m) => m.kind === 'leave'), null, 15000);
+  const came = await until(page, async (p) => { const s = await st(p); return s.phase === 'walking' && near(s, L.ENTRANCES.wardrobe); }, null, 20000);
+  ok(came, 'the host\'s round trip: back through the wardrobe\'s doors');
+  await page.forest().evaluate(() => { document.getElementById('gearbtn').click(); document.getElementById('tolamp').click(); });
+  await page.waitForTimeout(800);
+  ok(near(await st(page), L.ENTRANCES.lamppost), '"Back to the lamp post" in the menu');
+  ok(page.errors.length === 0, `no errors ${page.errors.join(' | ')}`);
+  await page.close();          // software WebGL: one page at a time, or the next one stalls
+}
+
+// ---- 7. A phone: the joystick walks you ------------------------------------------------------------------------------------
+{
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  page.errors = []; page.on('pageerror', (e) => page.errors.push(e.message)); pages.push(page);
+  await page.goto(`http://127.0.0.1:${PORT}/dev/host.html`);
+  await page.evaluate(() => { const f = document.getElementById('forest'); f.width = 360; f.height = 640; });
+  page.forest = () => page.frame({ url: new RegExp(`${PORT}/$`) });
+  await page.forest().waitForFunction(() => window.__forest, null, { timeout: 60000 });
+  await arrive(page, 'lamppost');
+  await until(page, async (p) => (await st(p)).phase === 'walking');
+  const s0 = await st(page);
+  const box = await page.locator('#forest').boundingBox();
+  const cdp = await page.context().newCDPSession(page);
+  const x0 = box.x + 70, y0 = box.y + 520;
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y: y0, id: 1 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0, y: y0 - 50, id: 1 }] });
+  await page.waitForTimeout(2500);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  const s1 = await st(page);
+  ok(Math.hypot(s1.x - s0.x, s1.z - s0.z) > 0.3, `phone: the thumb joystick walks you (${Math.hypot(s1.x - s0.x, s1.z - s0.z).toFixed(2)} blocks)`);
+  if (OUT) await page.locator('#forest').screenshot({ path: path.join(OUT, '08-phone.png') });
+  ok(page.errors.length === 0, `no errors on a phone ${page.errors.join(' | ')}`);
+  await page.close();          // software WebGL: one page at a time, or the next one stalls
+}
+
+await browser.close();
+server.close();
+console.log(failures ? `\n${failures} failed` : '\nall passed');
+process.exitCode = failures ? 1 : 0;

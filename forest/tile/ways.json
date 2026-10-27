@@ -1,0 +1,34 @@
+{
+  "v": 1,
+  "tile": "winter-forest",
+  "place": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.place/winter-forest",
+  "entry": "ways-only",
+  "exits": [
+    {
+      "id": "wardrobe",
+      "signpost": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.signpost/winter-forest.wardrobe",
+      "fallback": "https://thunderbird.cafe/way/winter-forest/wardrobe"
+    },
+    {
+      "id": "tree-door",
+      "signpost": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.signpost/winter-forest.tree-door",
+      "fallback": "https://thunderbird.cafe/way/winter-forest/tree-door"
+    },
+    {
+      "id": "arch",
+      "signpost": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.signpost/winter-forest.arch",
+      "fallback": "https://thunderbird.cafe/way/winter-forest/arch"
+    },
+    {
+      "id": "slide",
+      "signpost": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.signpost/winter-forest.slide",
+      "fallback": "https://thunderbird.cafe/way/winter-forest/slide"
+    }
+  ],
+  "entrances": [
+    { "id": "lamppost" },
+    { "id": "wardrobe" },
+    { "id": "tree-door" },
+    { "id": "arch" }
+  ]
+}

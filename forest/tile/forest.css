@@ -1,0 +1,88 @@
+/* Winter Forest. The forest is drawn in 3D (src/scene.js, src/portals.js); this is the page around it. */
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  position: relative; background: #05070f; color: #e8ecf5;
+  font: 14px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
+}
+#stage { position: absolute; inset: 0; }
+#stage[hidden] { display: none; }
+#stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+#bar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+  padding: 10px 12px; pointer-events: none;
+}
+#where {
+  margin: 0; font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: rgba(10, 14, 26, 0.62); padding: 6px 13px; border-radius: 999px;
+}
+#where:empty { display: none; }
+#bar .buttons { display: flex; gap: 8px; flex: none; }
+#bar button, #menu button {
+  pointer-events: auto; font: inherit; font-weight: 600; color: #e8ecf5; cursor: pointer;
+  background: rgba(10, 14, 26, 0.62); border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px; padding: 6px 13px; min-height: 36px; min-width: 36px;
+}
+#gearbtn { padding: 6px 9px; display: inline-flex; align-items: center; justify-content: center; }
+#bar button:hover, #menu button:hover { background: rgba(30, 38, 60, 0.8); }
+#soundbtn[aria-pressed="false"] { opacity: 0.7; text-decoration: line-through; }
+button:focus-visible, input:focus-visible { outline: 3px solid #ffd28a; outline-offset: 2px; }
+/* Nothing to press until you're in. */
+body:has(#postcard:not([hidden])) #bar { display: none; }
+
+#hint {
+  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 1;
+  margin: 0; padding: 7px 14px; border-radius: 999px; max-width: calc(100% - 48px); width: max-content;
+  background: rgba(10, 14, 26, 0.62); text-align: center; font-size: 13px; transition: opacity 0.6s; pointer-events: none;
+}
+#hint.gone { opacity: 0; }
+body:has(#postcard:not([hidden])) #hint { display: none; }
+
+#stick {
+  position: absolute; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%; z-index: 1;
+  background: rgba(255, 255, 255, 0.12); border: 2px solid rgba(255, 255, 255, 0.4); pointer-events: none;
+}
+#stick[hidden] { display: none; }
+#knob { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%; background: rgba(255, 255, 255, 0.5); }
+#pad { display: none; }
+
+#menu {
+  position: absolute; top: 56px; right: 12px; z-index: 3; width: min(300px, calc(100% - 24px)); box-sizing: border-box;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; max-height: calc(100% - 68px); overflow: auto;
+  background: rgba(14, 19, 34, 0.96); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 14px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4); user-select: text; -webkit-user-select: text;
+}
+#menu[hidden] { display: none; }
+#menu label.check { display: block; cursor: pointer; }
+#menu .small { margin: 0; font-size: 12px; opacity: 0.8; font-weight: 400; }
+#menu input { margin: 0 6px 0 0; accent-color: #ffd28a; }
+#menu #menuclose { align-self: flex-end; }
+
+#note {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 4;
+  margin: 0; padding: 7px 14px; border-radius: 999px; max-width: calc(100% - 48px); width: max-content;
+  background: rgba(10, 14, 26, 0.86); color: #fff; font-weight: 500; text-align: center;
+  opacity: 0; transition: opacity 0.25s; pointer-events: none;
+}
+#note.show { opacity: 1; }
+body:has(#hint:not(.gone)) #note { bottom: 58px; }
+
+/* The fade between places (its colour is the portal's: white, amber, pale blue, night). */
+#fade { position: absolute; inset: 0; z-index: 3; background: #0b1020; opacity: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+#fadetext { margin: 0; font-size: 15px; font-weight: 600; color: #2a3346; letter-spacing: 0.02em; }
+#fade.dark #fadetext { color: #e8ecf5; }
+
+/* The postcard (W16, W23). */
+#postcard { position: absolute; inset: 0; z-index: 5; background: #05070f; overflow: hidden; }
+#postcard[hidden] { display: none; }
+#postcard img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+#pcsnow { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#pcline {
+  position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); margin: 0; width: max-content; max-width: calc(100% - 40px);
+  padding: 8px 16px; border-radius: 999px; background: rgba(8, 11, 22, 0.62); color: #eef2fa; text-align: center;
+  font-size: 14px; letter-spacing: 0.01em; opacity: 0; transition: opacity 1.2s ease;
+}
+#pcline.show { opacity: 1; }
+@media (max-width: 420px) { #pcline { font-size: 13px; border-radius: 14px; } }

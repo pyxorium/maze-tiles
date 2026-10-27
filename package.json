@@ -12,6 +12,8 @@
     "build": "node scripts/build.mjs",
     "dev": "node dev/serve.mjs",
     "dev-iso": "node iso/dev/serve.mjs",
+    "build-forest": "node forest/scripts/build.mjs",
+    "dev-forest": "node forest/dev/serve.mjs",
     "test": "node --test test/*.test.mjs iso/test/*.test.mjs",
     "publish-tile": "node scripts/publish.mjs",
     "copy-to-site": "node scripts/copy-to-site.mjs"

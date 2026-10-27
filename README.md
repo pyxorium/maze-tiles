@@ -107,3 +107,29 @@ can move to a shared standard if one appears.
 The fallback pages: after changing `site\` or a `ways.json`, run `node scripts/copy-to-site.mjs` here (it writes
 into `C:\thunderbird-cafe\pyxorium.github.io`), then build and push the site. They're hidden (`/way/` is in the
 site's `HIDDEN_PAGES`).
+
+## Winter Forest (`forest\`)
+
+The obelisk's first destination: a snowy forest at night, a lamp post in a clearing, four winding paths to four
+portals (the wardrobe, the tree-door, the stone arch, and the library's slide back to the maze). Plan:
+claude/winter-forest-plan.md in the Foundry project (decisions W1 to W28). **Step 1 of 3, the forest outdoors:** the
+clearing with its settings (W6), the paths, the outsides of the four portals, their dormant and open looks, going
+through the wardrobe and the arch, the four entrances, `ways.json`, the postcard. Step 2 adds the insides (the
+tunnel and its door, the library, the shrink, the slide ride) and the new places' sounds; step 3 the travel page
+and publishing. Not published yet.
+
+- **Ways-only** (W16): opened directly (any viewer without a host) it shows its postcard, "This place is reached
+  through other places."; only a host's `arrive` lets you in. Its `ways.json` says `"entry": "ways-only"`.
+- `forest\src\` its code (`main.js`, `scene.js` the world, `portals.js` the four portals, `layout.js` where
+  everything is, `ways.js` a copy of the maze's, changed for the forest, `look.js` the settings, `sound.js`,
+  `postcard.js`). It uses the maze's `src\controls.js` as it is; nothing in the maze's `src\` is changed (W27).
+- `forest\tile\` the tile: `index.html`, `forest.css`, `forest.js` (built), `ways.json`, `icon.png`, `banner.png`.
+- `npm run build-forest` builds `forest\tile\forest.js` (three.js and esbuild from the Foundry's folder, as the
+  maze's build). Commit `forest\tile\forest.js` after building.
+- `npm run dev-forest`: http://127.0.0.1:5210/dev/host.html holds the forest in a stand-in host (choose where each
+  portal leads, send a traveller in at each entrance; after you leave, it can bring you back through the same
+  portal); http://127.0.0.1:5210/ is the tile on its own (the postcard); http://127.0.0.1:5210/dev/card-art.html
+  draws the card pictures.
+- `test\winter-forest.test.mjs` (part of `npm test`): `ways.json`, the messages, the settings, every entrance a
+  place you can stand, every path walkable from the lamp post to its portal. `forest\test\browser\check.mjs` tries
+  it all in a browser (run in the build chat).

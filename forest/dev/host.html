@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Winter Forest, with a stand-in host</title>
+<link rel="stylesheet" href="./host.css">
+</head>
+<body>
+<p>Winter Forest held by a stand-in host, as the travel page (W26) or Raku will hold it one day
+(claude/winter-forest-plan.md). The forest is ways-only: it shows its postcard until the host sends a traveller in.
+Click the frame first so it gets the keys.</p>
+<form id="controls">
+  <fieldset>
+    <legend>Where each portal leads (what its signpost would say)</legend>
+    <label>Wardrobe <select data-exit="wardrobe"><option value="open">leads somewhere</option><option value="dormant">nowhere yet</option></select></label>
+    <label>Tree-door <select data-exit="tree-door"><option value="open">leads somewhere</option><option value="dormant">nowhere yet</option></select></label>
+    <label>Arch <select data-exit="arch"><option value="open">leads somewhere</option><option value="dormant">nowhere yet</option></select></label>
+    <label>Slide <select data-exit="slide"><option value="open">leads somewhere</option><option value="dormant">nowhere yet</option></select></label>
+    <label><input type="checkbox" id="plain"> No host at all (don't answer)</label>
+  </fieldset>
+  <fieldset>
+    <legend>Send a traveller in</legend>
+    <button type="button" data-arrive="lamppost">at the lamp post</button>
+    <button type="button" data-arrive="wardrobe">through the wardrobe</button>
+    <button type="button" data-arrive="tree-door">by the great tree</button>
+    <button type="button" data-arrive="arch">under the arch</button>
+    <label><input type="checkbox" id="roundtrip" checked> After someone leaves, bring them back through the same portal (2 s)</label>
+    <label><input type="checkbox" id="big"> Bigger frame</label>
+  </fieldset>
+</form>
+<iframe id="forest" src="/" width="640" height="480" title="Winter Forest"></iframe>
+<h2>What was said</h2>
+<ol id="log"></ol>
+<script src="./host.js"></script>
+</body>
+</html>
