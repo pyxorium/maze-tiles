@@ -28,12 +28,41 @@
       "tile": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3mys6stpsyc2b",
       "tileCid": "bafyreibd5ougkwa3qgqy45ehxskce462r25t6x7z32q73k4nm57fujbioy",
       "updatedAt": "2026-10-26T16:55:17.141Z"
+    },
+    "winter-forest": {
+      "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.place/winter-forest",
+      "cid": "bafyreif5grks4g5jm7brx73pw2dz3pt2zkwslxe352j2oovuouw46qtkh4",
+      "tile": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3myxhl27cvr22",
+      "tileCid": "bafyreidjorw3edyrkv7wwvw4yzd74nf2677otgqpjj56ss4zv2ej4ydp6u",
+      "updatedAt": "2026-10-28T19:15:19.358Z"
     }
   },
   "signposts": {
     "maze.obelisk": {
       "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.signpost/maze.obelisk",
       "createdAt": "2026-10-26T16:55:17.313Z"
+    },
+    "winter-forest.wardrobe": {
+      "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.signpost/winter-forest.wardrobe",
+      "createdAt": "2026-10-28T19:15:19.526Z"
+    },
+    "winter-forest.tree-door": {
+      "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.signpost/winter-forest.tree-door",
+      "createdAt": "2026-10-28T19:15:19.680Z"
+    },
+    "winter-forest.arch": {
+      "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.signpost/winter-forest.arch",
+      "createdAt": "2026-10-28T19:15:19.833Z"
+    },
+    "winter-forest.slide": {
+      "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.signpost/winter-forest.slide",
+      "createdAt": "2026-10-28T19:15:19.990Z"
     }
+  },
+  "winter-forest": {
+    "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3myxhl27cvr22",
+    "cid": "bafyreidjorw3edyrkv7wwvw4yzd74nf2677otgqpjj56ss4zv2ej4ydp6u",
+    "manifestCid": "bafyreihgkihfuslcskbfunzpmzzbj7aqccr3xbzaptq76lmmodoatxzpcq",
+    "publishedAt": "2026-10-28T19:15:15.768Z"
   }
 }
