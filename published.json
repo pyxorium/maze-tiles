@@ -31,10 +31,10 @@
     },
     "winter-forest": {
       "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.place/winter-forest",
-      "cid": "bafyreif5grks4g5jm7brx73pw2dz3pt2zkwslxe352j2oovuouw46qtkh4",
-      "tile": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3myxhl27cvr22",
-      "tileCid": "bafyreidjorw3edyrkv7wwvw4yzd74nf2677otgqpjj56ss4zv2ej4ydp6u",
-      "updatedAt": "2026-10-28T19:15:19.358Z"
+      "cid": "bafyreifaglqlunbgrp7ehjsfgju6v7foyuvsxnnwzl3ouvw6xhh6himq6e",
+      "tile": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3myxm45elkp22",
+      "tileCid": "bafyreifahwnqqfnfxeqgkvq7sbnbxspne2nw5hrccoskrfuadn2rsudura",
+      "updatedAt": "2026-10-28T20:36:27.450Z"
     }
   },
   "signposts": {
@@ -60,9 +60,9 @@
     }
   },
   "winter-forest": {
-    "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3myxhl27cvr22",
-    "cid": "bafyreidjorw3edyrkv7wwvw4yzd74nf2677otgqpjj56ss4zv2ej4ydp6u",
-    "manifestCid": "bafyreihgkihfuslcskbfunzpmzzbj7aqccr3xbzaptq76lmmodoatxzpcq",
-    "publishedAt": "2026-10-28T19:15:15.768Z"
+    "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3myxm45elkp22",
+    "cid": "bafyreifahwnqqfnfxeqgkvq7sbnbxspne2nw5hrccoskrfuadn2rsudura",
+    "manifestCid": "bafyreic6amoafbwfik4cs2s22tfkfpnkyj53qx5ai7223bbncutxtx4tf4",
+    "publishedAt": "2026-10-28T20:36:24.507Z"
   }
 }
