@@ -112,12 +112,13 @@ site's `HIDDEN_PAGES`).
 
 The obelisk's first destination: a snowy forest at night, a lamp post in a clearing, four winding paths to four
 portals (the wardrobe, the tree-door, the stone arch, and the library's slide back to the maze). Plan:
-claude/winter-forest-plan.md in the Foundry project (decisions W1 to W33). **Steps 1 and 2 of 3:** the clearing
+claude/winter-forest-plan.md in the Foundry project (decisions W1 to W38). **Steps 1, 2 and 2b of 3:** the clearing
 with its settings (W6), the paths (the wardrobe's about 45 blocks with one bend, hidden from the clearing: W32), the
 four portals with their dormant and open looks and their going-through moments; the tunnel inside the great tree
-(bigger on the inside, the plank door halfway, its lantern); the library inside (shelves, tables and lamps, the
-fireplace, open books, the rolling ladder, the stairs up to the mezzanine and its reading nook, the bench and the
-figurine-sized door); the shrink and the slide ride (wood, ice through the forest, the Great Hall's blue); the new
+(bigger on the inside, the plank door halfway, its lantern); the library inside, bigger than its outside (shelves,
+tables and lamps, the fireplace, open books, the rolling ladder, a coat stand by the door, the stairs up to the
+mezzanine and its reading nook, then a walkway turning over the entrance under a rising ceiling, a crow on its
+railing watching you pass, and at its end the bench and the figurine-sized door); the shrink and the slide ride (wood, ice through the forest, the Great Hall's blue); the new
 places' sounds; the four entrances, `ways.json`, the postcard. Step 3 is the travel page and publishing. Not
 published yet.
 

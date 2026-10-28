@@ -497,12 +497,20 @@ export function createPortals({ scene, renderer, sceneParts, look, other }) {
       { const p = door.geometry.attributes.position, uv = door.geometry.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, (p.getX(i) + dw) / (2 * dw), p.getY(i) / dh); }
       door.rotation.y = Math.PI; door.position.copy(P(front - 0.2, 0, 0));
       g.add(door);
-      const lantern = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: col('#ffc276'), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
-      lantern.position.copy(P(front - 0.45, 2.3, 1.15)); lantern.scale.setScalar(0.9);
-      g.add(lantern);
-      const box = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.24, 0.16), new THREE.MeshBasicMaterial({ color: col('#ffd59a') }));
-      box.position.copy(P(front - 0.4, 2.3, 1.15));
-      g.add(box);
+      // A lantern either side of the door (step 2b: the left one added to match), each with a small warm light that
+      // falls on the door's planks and the stone round it.
+      const ironMat = new THREE.MeshLambertMaterial({ color: 0x1b1d22 });
+      for (const v of [-1.15, 1.15]) {
+        const lantern = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: col('#ffc276'), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+        lantern.position.copy(P(front - 0.45, 2.3, v)); lantern.scale.setScalar(0.9);
+        g.add(lantern);
+        const box = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.24, 0.16), new THREE.MeshBasicMaterial({ color: col('#ffd59a') }));
+        box.position.copy(P(front - 0.4, 2.3, v));
+        g.add(box);
+        const cap = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.12, 4).rotateY(Math.PI / 4), ironMat); cap.position.copy(P(front - 0.4, 2.48, v)); g.add(cap);
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.3), ironMat); arm.position.copy(P(front - 0.2, 2.55, v)); g.add(arm);
+        const light = new THREE.PointLight(col('#ffc276'), 2.4, 4.2, 1.4); light.position.copy(P(front - 0.75, 2.2, v * 0.85)); g.add(light);
+      }
     }
     // A stone chimney at the back, over the fireplace inside.
     const chim = new THREE.Mesh(new THREE.BoxGeometry(1.1, 3.2, 1.1), wallMat);

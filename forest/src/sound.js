@@ -13,6 +13,7 @@
 //   the arch    open, a faint shimmering tone as you near it, swelling as you pass under
 //   the ride    a wooden rattle-whoosh, then the hiss of ice, then a deep soft swell into the blue
 //   portals     a quiet chord as each going-through fade begins; a soft door sound going in and out
+//   the crow    a soft rustle of feathers when it hops along the railing (step 2b)
 // Browsers only allow sound after the person does something, so start() is called on the first key, click or tap.
 
 const DEFAULTS = { sound: true, volume: 0.8, footsteps: 0.8, footTone: 1.0, footCrisp: 0.6, wind: 0.5, lampHum: 0.35, music: 0.5, bells: 0.5, reverb: 0.5 };
@@ -201,6 +202,15 @@ export function createSound(params) {
   // Going in or out of a door: a soft wooden thud and a latch.
   function door() { if (!ctx || !p.sound) return; knock('wood', 1.4); setTimeout(() => { if (ctx) knock('boards', 0.5); }, 140); }
   function hop() { if (!ctx || !p.sound) return; knock('wood', 0.9); }
+  // The crow's feathers as it hops (W37): a soft, quick brush of high noise.
+  function rustle() {
+    if (!ctx || !p.sound) return;
+    const t = ctx.currentTime, src = ctx.createBufferSource(); src.buffer = noise;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3200; bp.Q.value = 0.9;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0, t);
+    for (const [k, v] of [[0.01, 0.05], [0.05, 0.02], [0.08, 0.04], [0.14, 0.015], [0.22, 0]]) g.gain.linearRampToValueAtTime(v, t + k);
+    src.connect(bp); bp.connect(g); g.connect(master); src.start(t, Math.random() * 2, 0.25);
+  }
   // The ride's parts (W24): 'wood', 'ice', 'blue', or null (quiet).
   function ride(part) {
     if (!ctx) return;
@@ -294,7 +304,7 @@ export function createSound(params) {
       if (!ctx) build();
       if (ctx.state === 'suspended' && !document.hidden) ctx.resume();
     },
-    step, update, apply, portal, door, hop, ride, setPlace,
+    step, update, apply, portal, door, hop, rustle, ride, setPlace,
     setFirePos(x, y, z) { firePos = [x, y, z]; if (fireNodes) setPos(fireNodes.pan, x, y, z); },
     pause() { if (ctx && ctx.state === 'running') ctx.suspend(); },
     resume() { if (ctx && ctx.state === 'suspended') ctx.resume(); },

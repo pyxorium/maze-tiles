@@ -101,8 +101,7 @@ export function createScene(renderer, L) {
     // Warm light from the library's windows lying on the snow.
     const f = FRAMES.slide;
     const lights = [];
-    // (Only below the tall windows: the round ones on the left are up high, above the mezzanine.)
-    lights.push(toWorld(f, LIBRARY.front - 1.4, 3.2));
+    // (Only below the tall windows on the right side: the round ones, front and left, are up high.)
     for (const u of [4.1, 8.1, 12.1]) lights.push(toWorld(f, u, LIBRARY.width / 2 + 1.4));
     g.save(); g.globalCompositeOperation = 'source-over';
     for (const [x, z] of lights) {

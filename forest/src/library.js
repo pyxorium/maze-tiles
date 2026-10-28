@@ -11,7 +11,8 @@
 //   the bench      in the front-right corner, and above it the figurine-sized door with its keyhole (W14, W18)
 // All in the slide portal's frame (layout.js FRAMES.slide): u from the door to the back wall, v to the right.
 import * as THREE from 'three';
-import { LIB, LIB_FURNITURE } from './inside.js';
+import { LIB, LIB_FURNITURE, walkFloor, libCeiling } from './inside.js';
+import { FRAMES, local } from './layout.js';
 import { rng } from './layout.js';
 import { col, glowTexture } from './scene.js';
 import { P, frameGroup } from './portals.js';
@@ -29,6 +30,8 @@ export function createLibrary() {
   const g = frameGroup('slide');
   scene.add(g);
   const { u0, u1, v: V, ceiling: H } = LIB;
+  const TOP = LIB.walk.top;                        // the walls reach this high (over the walkway the ceiling does too)
+  const W = LIB.walk;
   const rand = rng(91);
 
   // ---- materials ------------------------------------------------------------------------------------------------------
@@ -47,16 +50,34 @@ export function createLibrary() {
   {
     const f = new THREE.Mesh(new THREE.PlaneGeometry(2 * V, u1 - u0).rotateX(-Math.PI / 2), floorMat);
     f.position.copy(P((u0 + u1) / 2, 0.01, 0)); g.add(f);
-    const c = new THREE.Mesh(new THREE.PlaneGeometry(2 * V, u1 - u0).rotateX(Math.PI / 2), dark);
-    c.position.copy(P((u0 + u1) / 2, H, 0)); g.add(c);
-    for (let u = u0 + 1.4; u < u1; u += 2.2) g.add(box(u - 0.12, u + 0.12, -V, V, H - 0.26, H, dark));
+    // The ceiling (W34): flat at 5.4 over the room; over the walkway it slopes up towards the little door, with a
+    // panelled step between the two.
+    const c = new THREE.Mesh(new THREE.PlaneGeometry(2 * V, u1 - W.u1).rotateX(Math.PI / 2), dark);
+    c.position.copy(P((W.u1 + u1) / 2, H, 0)); g.add(c);
+    for (let u = W.u1 + 1.0; u < u1; u += 2.2) g.add(box(u - 0.12, u + 0.12, -V, V, H - 0.26, H, dark));
+    const pos = [], idx = [], soffit = [];
+    const vs = []; for (let v = -V; v <= V + 1e-9; v += 0.25) vs.push(v);
+    vs.forEach((v, i) => {
+      const y = libCeiling(u0 + 0.01, v);
+      for (const u of [u0, W.u1]) { const p = P(u, y, v); pos.push(p.x, p.y, p.z); }
+      for (const yy of [H, y]) { const p = P(W.u1, yy, v); soffit.push(p.x, p.y, p.z); }
+      if (i) { const a = (i - 1) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    });
+    for (const [arr, mat] of [[pos, dark], [soffit, panel]]) {
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3)); geo.setIndex(idx);
+      const uv = []; for (let i = 0; i < arr.length / 3; i++) uv.push((i % 2) * 0.8, Math.floor(i / 2) * 0.125); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      geo.computeVertexNormals();
+      g.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: mat.map, side: THREE.DoubleSide })));
+    }
+    // Beams across the rising part too, following it up.
+    for (let v = -1.5; v < V; v += 2.0) { const y = libCeiling(u0 + 0.01, v); g.add(box(u0, W.u1, v - 0.12, v + 0.12, y - 0.24, y, dark)); }
   }
 
   // ---- the walls: panelling round the window openings -------------------------------------------------------------------
   // Each wall is cut into rectangles that miss its windows. a runs along the wall; holes are { a0, a1, y0, y1 }.
   function wall(kind, holes) {
     const len = kind === 'front' || kind === 'back' ? [-V, V] : [u0, u1];
-    const as = new Set([len[0], len[1]]), ys = new Set([0, H]);
+    const as = new Set([len[0], len[1]]), ys = new Set([0, TOP]);
     for (const h of holes) { as.add(h.a0); as.add(h.a1); ys.add(h.y0); ys.add(h.y1); }
     const A = [...as].sort((p, q) => p - q), Y = [...ys].sort((p, q) => p - q);
     for (let i = 0; i < A.length - 1; i++) for (let j = 0; j < Y.length - 1; j++) {
@@ -123,14 +144,15 @@ export function createLibrary() {
 
   // ---- trunks set into the walls as columns ---------------------------------------------------------------------------
   for (const [u, side] of LIB.columns) {
-    const half = new THREE.CylinderGeometry(0.42, 0.48, H, 10, 1, true, 0, Math.PI);
+    const ch = u === 0 ? TOP : H;                   // the front's run up past the walkway to its high ceiling
+    const half = new THREE.CylinderGeometry(0.42, 0.48, ch, 10, 1, true, 0, Math.PI);
     const c = new THREE.Mesh(half, bark);
     // A half cylinder (made with x >= 0), turned to stand out from its wall into the room.
-    if (u === 0) { c.position.copy(P(u0, H / 2, side)); c.rotation.y = -Math.PI / 2; }    // the front wall, by the door
-    else { c.position.copy(P(u, H / 2, side * V)); c.rotation.y = side > 0 ? 0 : Math.PI; }
+    if (u === 0) { c.position.copy(P(u0, ch / 2, side)); c.rotation.y = -Math.PI / 2; }    // the front wall, by the door
+    else { c.position.copy(P(u, ch / 2, side * V)); c.rotation.y = side > 0 ? 0 : Math.PI; }
     g.add(c);
   }
-  for (const [u, v] of [[u0, -V], [u0, V], [u1, -V], [u1, V]]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.48, H, 10), bark); c.position.copy(P(u, H / 2, v)); g.add(c); }
+  for (const [u, v] of [[u0, -V], [u0, V], [u1, -V], [u1, V]]) { const ch = u === u0 ? TOP : H; const c = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.48, ch, 10), bark); c.position.copy(P(u, ch / 2, v)); g.add(c); }
 
   // ---- shelves and books ------------------------------------------------------------------------------------------------
   const books = [];
@@ -202,7 +224,7 @@ export function createLibrary() {
     const n = Math.max(2, Math.round(len / 0.32));
     for (let i = 0; i <= n; i++) { const p = pa.clone().lerp(pb, i / n); const post = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.9, 0.035), dark); post.position.copy(p).add(new THREE.Vector3(0, 0.45, 0)); g.add(post); }
   };
-  rail([mezz.u0 + 0.1, mezz.v1 - 0.05], [mezz.u1, mezz.v1 - 0.05], mezz.h, mezz.h);
+  rail([W.u1, mezz.v1 - 0.05], [mezz.u1, mezz.v1 - 0.05], mezz.h, mezz.h);
   {
     const n = 10, run = (stairs.u1 - stairs.u0) / n;
     for (let i = 0; i < n; i++) {
@@ -321,9 +343,9 @@ export function createLibrary() {
   // ---- the bench and the little door (W14, W18) -----------------------------------------------------------------------
   const little = {};
   {
-    const b = LIB.bench;
-    g.add(box(b.u0, b.u1, b.v0, b.v1, b.h - 0.06, b.h, wood));
-    for (const u of [b.u0 + 0.1, b.u1 - 0.1]) g.add(box(u - 0.04, u + 0.04, b.v0 + 0.05, b.v1 - 0.03, 0, b.h - 0.06, dark));
+    const b = LIB.bench, y0 = W.h1;                // at the walkway's end (step 2b)
+    g.add(box(b.u0, b.u1, b.v0, b.v1, y0 + b.h - 0.06, y0 + b.h, wood));
+    for (const u of [b.u0 + 0.1, b.u1 - 0.1]) g.add(box(u - 0.04, u + 0.04, b.v0 + 0.05, b.v1 - 0.03, y0, y0 + b.h - 0.06, dark));
     const L = LIB.littleDoor, w = L.half, h = L.y1 - L.y0;
     // The frame round it, and a dark warm hollow behind (seen when it opens).
     const hollow = new THREE.Mesh(new THREE.PlaneGeometry(2 * w, h), new THREE.MeshBasicMaterial({ color: 0x1a0d06 }));
@@ -350,6 +372,81 @@ export function createLibrary() {
     little.glow.position.copy(P(L.u, L.y0 + h * 0.45, V - 0.08)); little.glow.scale.setScalar(0.35); g.add(little.glow);
   }
 
+  // ---- the walkway over the entrance (step 2b): its rising floor, a post, its railing ----------------------------------
+  {
+    const slope = (va, vb) => {
+      // A slab from va to vb along the front wall, following walkFloor (rising, then level).
+      const ha = walkFloor(va), hb = walkFloor(vb), len = Math.hypot(vb - va, hb - ha);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(len, 0.16, W.u1 - W.u0), wood);
+      m.position.copy(P((W.u0 + W.u1) / 2, (ha + hb) / 2 - 0.08, (va + vb) / 2));
+      m.rotation.z = -Math.atan2(hb - ha, vb - va);
+      g.add(m);
+      const edge = new THREE.Mesh(new THREE.BoxGeometry(len, 0.3, 0.1), dark);
+      edge.position.copy(P(W.u1 - 0.05, (ha + hb) / 2 - 0.15, (va + vb) / 2)); edge.rotation.z = m.rotation.z; g.add(edge);
+    };
+    slope(W.v0, W.level); slope(W.level, W.v1);
+    const post = LIB_FURNITURE.find((f) => f.id === 'walk-posts');
+    g.add(box(post.u0, post.u1, post.v0, post.v1, 0, W.h1 - 0.16, dark));
+    // Two small lanterns on the front wall over the walkway, so the climb is lit (the room's lamps are far below).
+    for (const v of [-0.6, 3.0]) {
+      const y = walkFloor(v) + 1.55;
+      g.add(box(u0, u0 + 0.22, v - 0.02, v + 0.02, y + 0.1, y + 0.14, iron));
+      const glass = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.17, 0.11), new THREE.MeshBasicMaterial({ color: col('#ffd59a') }));
+      glass.position.copy(P(u0 + 0.22, y, v)); g.add(glass);
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.08, 4).rotateY(Math.PI / 4), iron); cap.position.copy(P(u0 + 0.22, y + 0.12, v)); g.add(cap);
+      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: col('#ffc27a'), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.7 }));
+      halo.position.copy(P(u0 + 0.24, y, v)); halo.scale.setScalar(0.7); g.add(halo);
+      const light = new THREE.PointLight(col('#ffbf78'), 4.5, 7, 1.4); light.position.copy(P(u0 + 0.45, y, v)); g.add(light);
+    }
+    rail([W.u1 - 0.03, W.v0], [W.u1 - 0.03, W.level], W.h0, W.h1);
+    rail([W.u1 - 0.03, W.level], [W.u1 - 0.03, W.v1], W.h1, W.h1);
+  }
+
+  // ---- the coat stand by the door (W36): a long winter coat, a scarf, boots ---------------------------------------------
+  {
+    const f = LIB_FURNITURE.find((x) => x.id === 'coat-stand'), cu = (f.u0 + f.u1) / 2, cv = (f.v0 + f.v1) / 2 + 0.1;
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.85, 8), dark); pole.position.copy(P(cu, 0.925, cv)); g.add(pole);
+    for (const a of [0, 2.1, 4.2]) { const foot = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.32), dark); foot.position.copy(P(cu, 0.03, cv)); foot.rotation.y = a; foot.translateZ(0.12); g.add(foot); }
+    for (const a of [0.4, 2.5, 4.6]) { const hook = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.18, 6).rotateX(Math.PI / 3), brass); hook.position.copy(P(cu, 1.78, cv)); hook.rotation.y = a; hook.translateZ(0.06); g.add(hook); }
+    // The coat: long and dark, hanging from a hook; the scarf over another, its ends down.
+    const prof = [[0.0, -1.35], [0.25, -1.33], [0.27, -1.1], [0.23, -0.6], [0.2, -0.2], [0.22, -0.08], [0.17, 0.0], [0.05, 0.04], [0, 0.04]].map(([r, y]) => new THREE.Vector2(r, y));
+    const coat = new THREE.Mesh(new THREE.LatheGeometry(prof, 12).scale(1, 1, 0.55), new THREE.MeshLambertMaterial({ color: 0x3a3442 }));
+    coat.position.copy(P(cu - 0.18, 1.8, cv - 0.02)); coat.rotation.y = 0.5; g.add(coat);
+    const scarf = new THREE.MeshLambertMaterial({ color: 0x8a2a24 });
+    for (const [du, len] of [[0.06, 0.62], [0.12, 0.5]]) { const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, len, 0.03), scarf); s2.position.copy(P(cu + du, 1.78 - len / 2, cv + 0.1)); s2.rotation.x = 0.1; g.add(s2); }
+    // The boots, side by side at its foot.
+    const boot = new THREE.MeshLambertMaterial({ color: 0x2a1c14 });
+    for (const dv of [-0.08, 0.08]) {
+      g.add(box(cu + 0.18, cu + 0.3, cv + dv - 0.05, cv + dv + 0.05, 0, 0.28, boot));
+      g.add(box(cu + 0.18, cu + 0.42, cv + dv - 0.05, cv + dv + 0.05, 0, 0.08, boot));
+    }
+  }
+
+  // ---- the crow on the walkway's railing (W37) --------------------------------------------------------------------------
+  const crow = {};
+  {
+    const at = { u: W.u1 - 0.03, v: 2.1 }, railTop = walkFloor(at.v) + 0.93;   // about halfway along, clear of the column behind
+    const black = new THREE.MeshPhongMaterial({ color: 0x15161c, specular: 0x4a5a7a, shininess: 40 });
+    const beakMat = new THREE.MeshLambertMaterial({ color: 0x2a2a30 });
+    const bird = new THREE.Group();                  // faces the walkway (-u: in the group -z), watching who comes along
+    bird.position.copy(P(at.u, railTop, at.v)); bird.rotation.y = Math.PI;
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 9).scale(0.85, 0.9, 1.35), black); body.position.set(0, 0.12, 0); body.rotation.x = -0.35; bird.add(body);
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.2, 4).scale(1, 1, 0.3), black); tail.position.set(0, 0.08, -0.15); tail.rotation.x = -2.0; bird.add(tail);
+    const wings = [-1, 1].map((sd) => { const w2 = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6).scale(0.35, 0.8, 1.6), black); w2.position.set(sd * 0.075, 0.13, -0.02); w2.rotation.x = -0.4; bird.add(w2); return w2; });
+    const head = new THREE.Group(); head.position.set(0, 0.25, 0.08); bird.add(head);
+    head.add(new THREE.Mesh(new THREE.SphereGeometry(0.065, 12, 9), black));
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.09, 6).rotateX(Math.PI / 2), beakMat); beak.position.set(0, -0.01, 0.09); head.add(beak);
+    const eyes = [-1, 1].map((sd) => {
+      const e = new THREE.Group(); e.position.set(sd * 0.042, 0.015, 0.035);
+      e.add(new THREE.Mesh(new THREE.SphereGeometry(0.013, 8, 6), new THREE.MeshBasicMaterial({ color: 0x0a0a0c })));
+      const glint = new THREE.Mesh(new THREE.SphereGeometry(0.004, 6, 4), new THREE.MeshBasicMaterial({ color: 0xffffff })); glint.position.set(sd * 0.004, 0.005, 0.011); e.add(glint);
+      head.add(e); return e;
+    });
+    for (const sd of [-1, 1]) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.07, 5), beakMat); leg.position.set(sd * 0.03, 0.035, 0.01); bird.add(leg); }
+    g.add(bird);
+    Object.assign(crow, { bird, head, eyes, wings, at, base: bird.position.clone(), hop: null, home: true, nextHop: 6, nextLook: 3, nextBlink: 2, look: 0, lookTo: 0, blink: 0 });
+  }
+
   // ---- the room's own light: the night through the windows, cool and dim -----------------------------------------------
   scene.add(new THREE.AmbientLight(col('#7d8db5'), 0.55));
   scene.add(new THREE.HemisphereLight(col('#93a4d0'), col('#4a3424'), 0.45));
@@ -357,12 +454,52 @@ export function createLibrary() {
   const fill = new THREE.PointLight(col('#ffb070'), 3.5, 18, 1.2); fill.position.copy(P((u0 + u1) / 2, H - 0.6, 0.5)); g.add(fill);
 
   let open = false;
+  // The crow (W37): every 5 to 10 s one hop of a hand's width to the right, and after a moment or two one back; now
+  // and then a small head turn; a blink every few seconds; and when you're near, up on the walkway or the mezzanine,
+  // it turns its head to follow you. Reduce motion: no hops.
+  let onHop = () => {};
+  function tickCrow(t, dt, fig, reduce) {
+    const c = crow;
+    // Hops.
+    if (c.hop) {
+      c.hop.t += dt;
+      const k = Math.min(1, c.hop.t / 0.32), from = c.hop.from, to = c.hop.to;
+      const v = from + (to - from) * k;
+      c.bird.position.copy(c.base).add(P(0, 0, v).sub(P(0, 0, 0)));
+      c.bird.position.y = c.base.y + Math.sin(k * Math.PI) * 0.07;
+      for (const [i, w2] of c.wings.entries()) w2.rotation.z = (i ? -1 : 1) * Math.sin(k * Math.PI) * 0.9;
+      if (k >= 1) { c.hop = null; c.bird.position.y = c.base.y; for (const w2 of c.wings) w2.rotation.z = 0; }
+    } else if (!reduce && t > c.nextHop) {
+      c.hop = { t: 0, from: c.home ? 0 : 0.18, to: c.home ? 0.18 : 0 };
+      c.home = !c.home;
+      c.nextHop = t + (c.home ? 5 + Math.random() * 5 : 1.2 + Math.random() * 1.8);
+      onHop();
+    }
+    // Where to look: at you, when you're near and up here; otherwise now and then a little to one side and back.
+    let watching = false;
+    if (fig && fig.level > 1) {
+      const [fu, fv] = local(FRAMES.slide, fig.x, fig.z);
+      const du = fu - c.at.u, dv = fv - (c.at.v + (c.home ? 0 : 0.18));
+      if (Math.hypot(du, dv) < 5) { watching = true; c.lookTo = Math.max(-1.6, Math.min(1.6, Math.atan2(dv, -du))); }   // (it faces -u)
+    }
+    if (!watching && t > c.nextLook) { c.lookTo = c.lookTo !== 0 ? 0 : (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.25); c.nextLook = t + (c.lookTo ? 1.2 + Math.random() * 1.5 : 3 + Math.random() * 5); }
+    c.look += (c.lookTo - c.look) * Math.min(1, dt * (watching ? 6 : 9));
+    c.head.rotation.y = c.look;
+    // Blinks.
+    if (t > c.nextBlink) { c.blink = 0.14; c.nextBlink = t + 2 + Math.random() * 4; }
+    c.blink = Math.max(0, c.blink - dt);
+    for (const e of c.eyes) e.scale.y = c.blink > 0 ? 0.12 : 1;
+  }
   return {
     scene, group: g,
     // The little door's look (W18): dormant, shut with its keyhole; open, a faint warm glow round it.
     setLook(state) { open = state === 'open'; little.keyhole.visible = !open; },
     setLittleDoor(k) { little.hinge.rotation.y = Math.PI / 2 + k * 1.7; },
-    tick(t) {
+    set onHop(f) { onHop = f; },
+    crow,
+    // t: seconds; fig: where you are ({ x, z, level }) when you're in the library, for the crow to watch.
+    tick(t, { fig = null, dt = 1 / 60, reduce = false } = {}) {
+      tickCrow(t, dt, fig, reduce);
       const n = (a, b) => 0.5 + 0.5 * Math.sin(t * a + b);
       const f = 0.75 + 0.25 * n(8.3, 0) * n(5.1, 1.3) + 0.1 * n(17, 2);
       fire.light.intensity = 12 * f; fire.glow.material.opacity = 0.4 + 0.25 * f;

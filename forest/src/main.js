@@ -21,8 +21,8 @@ import { createTunnel } from './tunnel.js';
 import { createRide, RIDE, HALL_BLUE } from './ride.js';
 import { createSound } from './sound.js';
 import { joinWays, WAYS } from './ways.js';
-import { walk, touching, areaOf, ENTRANCES, FRAMES, local, world as toWorld, CLEARING, WARDROBE, LANE } from './layout.js';
-import { LIB, libWalk, libHeightAt, libTouching, libArea, libCamera, LIB_IN, LIB_OUT, tunnelWalk, tunnelTouching, tunnelCamera, tunnelLocal, TUNNEL_IN, TUNNEL_OUT, TUNNEL_ARRIVE, TUNNEL_FLOOR, tunnelAt } from './inside.js';
+import { walk, touching, areaOf, ENTRANCES, FRAMES, local, world as toWorld, CLEARING, WARDROBE, LANE, LIBRARY, TRUNK, TRUNK_CENTRE } from './layout.js';
+import { LIB, libStep, libHeightAt, libTouching, libArea, libCamera, LIB_IN, LIB_OUT, tunnelWalk, tunnelTouching, tunnelCamera, tunnelLocal, TUNNEL_IN, TUNNEL_OUT, TUNNEL_ARRIVE, TUNNEL_FLOOR, tunnelAt } from './inside.js';
 import { showPostcard, hidePostcard } from './postcard.js';
 
 const L = LOOK;
@@ -51,6 +51,7 @@ const ride = createRide({ forest: scene, groundAt });
 const sound = createSound(params);
 const SCENES = { forest: scene, library: library.scene, tunnel: tunnel.scene, ride: ride.scene };
 { const [fx, fz] = toWorld(FRAMES.slide, LIB.u1 - 0.5, 0); sound.setFirePos(fx, 0.6, fz); }
+library.onHop = () => { if (place === 'library') sound.rustle(); };     // the crow's hops (W37)
 
 // Where travellers arrive (W19): three in the forest; the tree-door's in the tunnel, just through the door (W31).
 const ARRIVALS = {
@@ -61,7 +62,7 @@ const ARRIVALS = {
 };
 
 // ---- where you are ---------------------------------------------------------------------------------------------------------
-const fig = { x: ENTRANCES.lamppost.x, z: ENTRANCES.lamppost.z, yaw: ENTRANCES.lamppost.yaw, y: 0, bob: 0, steps: 0, size: 1 };
+const fig = { x: ENTRANCES.lamppost.x, z: ENTRANCES.lamppost.z, yaw: ENTRANCES.lamppost.yaw, y: 0, level: 0, bob: 0, steps: 0, size: 1 };
 let place = 'forest';              // forest | library | tunnel | ride
 let phase = 'postcard';            // postcard | walking | going | leaving | arriving | passing
 let entered = false;
@@ -143,10 +144,12 @@ function setPlace(p) {
 }
 function setSpot(spot) {
   Object.assign(fig, { x: spot.x, z: spot.z, yaw: spot.yaw });
+  fig.level = place === 'library' ? libHeightAt(fig.x, fig.z) : 0;      // (arriving: the highest floor there)
   fig.y = floorAt(fig.x, fig.z);
 }
+// The floor under you: in the library, the one you're on (under the walkway there are two).
 function floorAt(x, z) {
-  if (place === 'library') return libHeightAt(x, z);
+  if (place === 'library') return libHeightAt(x, z, fig.level);
   if (place === 'tunnel') return TUNNEL_FLOOR;
   return groundAt(x, z);
 }
@@ -339,7 +342,7 @@ function play(dt) {
 
 // ---- walking ---------------------------------------------------------------------------------------------------------------
 function areaHere() {
-  if (place === 'library') return libArea(fig.x, fig.z);
+  if (place === 'library') return libArea(fig.x, fig.z, fig.level);
   if (place === 'tunnel') return 'inside the great tree';
   if (place === 'ride' || (anim && anim.kind === 'ride')) return 'down the slide';
   return areaOf(fig.x, fig.z);
@@ -362,26 +365,26 @@ function update(dt) {
   if (fwd) {
     const want = [fig.x + f[0] * fwd * L.walkSpeed * dt, fig.z + f[1] * fwd * L.walkSpeed * dt];
     const move = [want[0] - fig.x, want[1] - fig.z];
-    const before = fig.y;
-    const [x, z] = place === 'library' ? libWalk([fig.x, fig.z], move) : place === 'tunnel' ? tunnelWalk([fig.x, fig.z], move) : walk([fig.x, fig.z], move, walkWorld);
-    fig.x = x; fig.z = z;
+    const before = fig.level;
+    if (place === 'library') { const r = libStep([fig.x, fig.z], move, fig.level); if (r) [fig.x, fig.z, fig.level] = r; }
+    else { const [x, z] = place === 'tunnel' ? tunnelWalk([fig.x, fig.z], move) : walk([fig.x, fig.z], move, walkWorld); fig.x = x; fig.z = z; }
     fig.bob += dt * 9 * Math.abs(fwd);
     const n = Math.floor(fig.bob / Math.PI);
     if (n !== fig.steps) {
       fig.steps = n;
-      const onStairs = place === 'library' && libArea(fig.x, fig.z) === 'on the stairs';
+      const onStairs = place === 'library' && libArea(fig.x, fig.z, fig.level) === 'on the stairs';
       sound.step({ surface: surfaceHere(), creak: onStairs && Math.random() < 0.35 });
     }
     // Walking forwards into something (where you'd have been, had nothing stopped you).
     let t = null;
     if (fwd > 0) {
-      if (place === 'library') t = libTouching(fig.x, fig.z, want[0], want[1]);
+      if (place === 'library') t = libTouching(fig.x, fig.z, want[0], want[1], fig.level);
       else if (place === 'tunnel') t = tunnelTouching(fig.x, fig.z, want[0], want[1]);
       else t = touching(want[0], want[1]) || touching(fig.x, fig.z);
     }
     if (t && touched !== t.id + t.kind) { touched = t.id + t.kind; touchThing(t); }
     else if (!t) touched = null;
-    if (place === 'library' && libHeightAt(fig.x, fig.z) - before > 0.3) sound.hop();
+    if (place === 'library' && fig.level - before > 0.3) sound.hop();
   }
   dragX = 0;
   setWhere(areaHere());
@@ -398,6 +401,11 @@ function placeFigure(dt) {
   figure.rotation.y = fig.yaw;
 }
 
+function solidAt(x, z) {
+  const [u, v] = local(FRAMES.slide, x, z);
+  if (u > LIBRARY.front - 0.4 && u < LIBRARY.front + LIBRARY.depth + 0.4 && Math.abs(v) < LIBRARY.width / 2 + 0.4) return true;
+  return Math.hypot(x - TRUNK_CENTRE[0], z - TRUNK_CENTRE[1]) < TRUNK.radius + 0.75;
+}
 // ---- the camera: behind and above the shoulder, easing after you; kept inside walls indoors --------------------------------
 function updateCamera(dt) {
   let want, look;
@@ -419,8 +427,16 @@ function updateCamera(dt) {
         const [x, z] = toWorld(FRAMES.wardrobe, u, v); want.x = x; want.z = z;
       }
       if (u > -WARDROBE.depth - 0.4 && u < 0.2 && Math.abs(v) < WARDROBE.half + 0.4) want.y = Math.min(want.y, WARDROBE.height - 0.3);
+      // Never inside the library's cottage or the great tree's trunk (stepping out of them, it would be behind you):
+      // come closer instead.
+      if (solidAt(want.x, want.z)) {
+        for (let i = 19; i >= 1; i--) {
+          const k = i / 20, x = fig.x + (want.x - fig.x) * k, z = fig.z + (want.z - fig.z) * k;
+          if (!solidAt(x, z)) { want.x = x; want.z = z; break; }
+        }
+      }
     } else if (place === 'library' && s > 0.9) {
-      const c = libCamera(want, fig); want.set(c.x, c.y, c.z);
+      const c = libCamera(want, fig, fig.level); want.set(c.x, c.y, c.z);
     } else if (place === 'tunnel') {
       const along = tunnelAt(tunnelLocal(fig.x, fig.z).s), into = f.x * along.dx + f.z * along.dz > 0;
       const c = tunnelCamera(want, fig, into); want.set(c.x, c.y, c.z);
@@ -435,11 +451,12 @@ function updateCamera(dt) {
 }
 
 // ---- the frame -------------------------------------------------------------------------------------------------------------
-let last = performance.now(), paused = false;
+let last = performance.now(), paused = false, lastDt = 1 / 60;
 const archAt = new THREE.Vector3(...(() => { const [x, z] = toWorld(FRAMES.arch, 0, 0); return [x, 1.8, z]; })());
 function render(now) {
   const t = now / 1000;
-  world3.tick(t); library.tick(t); tunnel.tick(t);
+  world3.tick(t); tunnel.tick(t);
+  library.tick(t, { fig: place === 'library' ? { x: fig.x, z: fig.z, level: fig.level } : null, dt: lastDt, reduce: reduceMotion });
   portals.shimmerTime.value = t;
   if (place === 'ride') { renderer.render(ride.scene, camera); return; }
   // The arch's view: only drawn outdoors, when it's open and could be seen (near, and in front of the camera).
@@ -460,7 +477,7 @@ function render(now) {
   }
 }
 function frame(now) {
-  const dt = Math.min(0.1, (now - last) / 1000) * (window.__forest.timeScale || 1); last = now;
+  const dt = Math.min(0.1, (now - last) / 1000) * (window.__forest.timeScale || 1); last = now; lastDt = dt;
   if (!paused) {
     update(dt); play(dt); placeFigure(dt); updateCamera(dt);
     if (phase === 'leaving' && now - leftAt > BLOCKED_AFTER) blocked();
@@ -489,8 +506,8 @@ resize();
 // For the browser check and the card pictures (forest/test/browser/check.mjs, forest/dev/card-art.html) only; nothing
 // on the page calls these.
 window.__forest = {
-  state: () => ({ phase, place, entered, x: fig.x, z: fig.z, y: fig.y, yaw: fig.yaw, size: fig.size, area: lastArea, ways: ways.mode, exits: Object.fromEntries(WAYS.exits.map((e) => [e.id, ways.state(e.id)])), anim: anim && anim.kind, part: anim && anim.part, leftBy, reduceMotion, archOpen: portals.parts.arch.faceMat.uniforms.open.value, wardrobeGlow: portals.parts.wardrobe.lineMat.opacity, cam: [camera.position.x, camera.position.z, camera.position.y] }),
-  jump(x, z, yaw, where) { if (where && where !== place) setPlace(where); Object.assign(fig, { x, z, yaw }); fig.y = floorAt(x, z); cam.ready = false; touched = null; setWhere(areaHere()); },
+  state: () => ({ phase, place, entered, crowLook: library.crow.look, x: fig.x, z: fig.z, y: fig.y, level: fig.level, yaw: fig.yaw, size: fig.size, area: lastArea, ways: ways.mode, exits: Object.fromEntries(WAYS.exits.map((e) => [e.id, ways.state(e.id)])), anim: anim && anim.kind, part: anim && anim.part, leftBy, reduceMotion, archOpen: portals.parts.arch.faceMat.uniforms.open.value, wardrobeGlow: portals.parts.wardrobe.lineMat.opacity, cam: [camera.position.x, camera.position.z, camera.position.y] }),
+  jump(x, z, yaw, where, level) { if (where && where !== place) setPlace(where); Object.assign(fig, { x, z, yaw }); fig.level = place === 'library' ? (level ?? libHeightAt(x, z)) : 0; fig.y = floorAt(x, z); cam.ready = false; touched = null; setWhere(areaHere()); },
   held, stick,
   timeScale: 1,                 // the browser check slows the moments down to look at them
   // Card pictures: one still from a spot, at a size, and hand back a PNG.

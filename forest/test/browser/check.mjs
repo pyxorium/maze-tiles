@@ -57,7 +57,7 @@ const until = async (page, fn, arg, ms = 30000) => { const t0 = Date.now(); whil
 const near = (s, e, d = 0.15) => Math.hypot(s.x - e.x, s.z - e.z) < d;
 const arrive = (page, id) => page.evaluate((id) => window.__host.arrive(id), id);
 // Put the figure somewhere (the hook), then walk forwards by holding ↑ until fn says stop.
-const jump = (page, x, z, yaw, where = 'forest') => page.forest().evaluate(([x, z, yaw, w]) => window.__forest.jump(x, z, yaw, w), [x, z, yaw, where]);
+const jump = (page, x, z, yaw, where = 'forest', level) => page.forest().evaluate(([x, z, yaw, w, l]) => window.__forest.jump(x, z, yaw, w, l ?? undefined), [x, z, yaw, where, level ?? null]);
 async function holdUp(page, stop, ms = 15000) {
   await page.locator('#forest').click({ position: { x: 600, y: 240 } });
   await page.forest().evaluate(() => { window.__forest.held.forward = true; });
@@ -146,6 +146,8 @@ const towards = (id, u, v = 0) => { const f = L.FRAMES[id]; const [x, z] = L.wor
   { const s = await st(page); await jump(page, s.x, s.z, s.yaw + Math.PI, 'tunnel'); }
   await holdUp(page, async (p) => (await st(p)).place === 'forest' && (await st(p)).phase === 'walking', 20000);
   ok((await st(page)).place === 'forest' && near(await st(page), I.TUNNEL_OUT, 0.3), 'out of the mouth again, in front of the great tree');
+  await page.waitForTimeout(1500);
+  { const c = (await st(page)).cam; ok(Math.hypot(c[0] - L.TRUNK_CENTRE[0], c[1] - L.TRUNK_CENTRE[1]) > L.TRUNK.radius + 0.6, 'stepping out of the great tree, the camera is outside its trunk (step 2b)'); }
   // The library: in by its door, onto the bench, into the little door (W14, W33).
   const d = towards('slide', -2.0);
   await jump(page, d.x, d.z, d.yaw);
@@ -159,6 +161,30 @@ const towards = (id, u, v = 0) => { const f = L.FRAMES[id]; const [x, z] = L.wor
   await holdUp(page, async (p) => (said = await noteText(p)) !== '', 15000);
   ok(said === "This doesn't lead anywhere yet." && (await st(page)).y > 0.4, `slide, dormant: up on the bench, "${said}" at the little door`);
   await shot(page, '03-dormant-little-door');
+  ok(Math.abs((await st(page)).level - (I.LIB.walk.h1 + I.LIB.bench.h)) < 0.01, 'the bench and the little door are up at the walkway\'s end (step 2b)');
+  // The crow on the walkway's railing watches you as you come along (W37).
+  {
+    const a = L.world(L.FRAMES.slide, 1.6, 0.6), t = L.world(L.FRAMES.slide, 1.6, 4.0);
+    await jump(page, a[0], a[1], Math.atan2(-(t[0] - a[0]), -(t[1] - a[1])), 'library', I.walkFloor(0.6));
+    await page.waitForTimeout(2500);
+    const l1 = (await st(page)).crowLook;
+    const c = L.world(L.FRAMES.slide, 1.6, 3.6);
+    await jump(page, c[0], c[1], 0, 'library', I.LIB.walk.h1);
+    await page.waitForTimeout(2500);
+    const l2 = (await st(page)).crowLook;
+    ok(l1 < -0.3 && l2 > 0.3, `the crow turns its head to follow you along the walkway (${l1.toFixed(2)} then ${l2.toFixed(2)})`);
+    await shot(page, '03-crow');
+  }
+  // Out of the library by its door, from under the walkway: the camera outside the cottage (step 2b fix).
+  {
+    const a = L.world(L.FRAMES.slide, 2.4, 0), t = L.world(L.FRAMES.slide, 0, 0);
+    await jump(page, a[0], a[1], Math.atan2(-(t[0] - a[0]), -(t[1] - a[1])), 'library', 0);
+    await holdUp(page, async (p) => (await st(p)).place === 'forest' && (await st(p)).phase === 'walking', 15000);
+    await page.waitForTimeout(1500);
+    const c = (await st(page)).cam, [cu, cv] = L.local(L.FRAMES.slide, c[0], c[1]);
+    ok((await st(page)).place === 'forest' && !(cu > L.LIBRARY.front - 0.35 && cu < L.LIBRARY.front + L.LIBRARY.depth && Math.abs(cv) < L.LIBRARY.width / 2), `stepping out of the library, the camera is outside the cottage (u ${cu.toFixed(2)})`);
+    await shot(page, '03-library-out');
+  }
   ok((await hostLog(page)).every((m) => m.kind !== 'leave'), 'nothing dormant sends way.leave');
   ok(page.errors.length === 0, `no errors ${page.errors.join(' | ')}`);
   await page.close();          // software WebGL: one page at a time, or the next one stalls

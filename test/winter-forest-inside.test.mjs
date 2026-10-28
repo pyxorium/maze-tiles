@@ -1,5 +1,6 @@
-// Winter Forest, step 2 (claude/winter-forest-plan.md, W11, W13, W14, W29 to W33): the library's inside (the floor,
-// the stairs, the mezzanine and its reading nook, the bench and the little door, the doors in and out), the tunnel in
+// Winter Forest, steps 2 and 2b (claude/winter-forest-plan.md, W11, W13, W14, W29 to W38): the library's inside (the
+// floor, the stairs, the mezzanine and its reading nook, the walkway over the entrance, the bench and the little door
+// at its end, the doors in and out), the tunnel in
 // the great tree (bigger on the inside: in at the mouth, to the door, out again), and the ice run's way through the
 // forest. Runs in Node: forest/src/inside.js and layout.js have no three.js.
 import test from 'node:test';
@@ -16,53 +17,84 @@ const forest = () => {
   return { trees, paths, pathWidth: LOOK.pathWidth };
 };
 
-// Walk through (u, v) waypoints in the library, as a player steering towards each; returns where it ended.
-function libRoute(from, route) {
+// Walk through (u, v) waypoints in the library, as a player steering towards each, keeping track of the floor you're
+// on (under the walkway there are two); returns where it ended and on which floor.
+function libRoute(from, route, h = 0) {
   let p = from;
   for (const [u, v] of route) {
     const [tx, tz] = lib(u, v);
     for (let i = 0; i < 400; i++) {
       const dx = tx - p[0], dz = tz - p[1], d = Math.hypot(dx, dz);
       if (d < 0.05) break;
-      const s = Math.min(0.08, d), n = I.libWalk(p, [dx / d * s, dz / d * s]);
-      if (n === p) return { stuck: true, at: uv(p), h: I.libHeightAt(...p), p };
-      p = n;
+      const s = Math.min(0.08, d), r = I.libStep(p, [dx / d * s, dz / d * s], h);
+      if (!r) return { stuck: true, at: uv(p), h, p };
+      p = [r[0], r[1]]; h = r[2];
     }
   }
-  return { stuck: false, at: uv(p), h: I.libHeightAt(...p), p };
+  return { stuck: false, at: uv(p), h, p };
 }
+const UP_ROUTE = [[3, -1], [12, -1.8], [13.6, -3.0], [13.6, -4.1], [11, -4.1], [9.3, -4.0], [6, -3.6], [3, -3.5], [2.6, -2.8]];
 
 test('library: up the stairs from the back, along the mezzanine to the reading nook (W29)', () => {
-  const r = libRoute([I.LIB_IN.x, I.LIB_IN.z], [[3, -1], [12, -1.8], [13.6, -3.0], [13.6, -4.1], [11, -4.1], [9.3, -4.0], [6, -3.6], [3, -3.5], [2.6, -2.8]]);
+  const r = libRoute([I.LIB_IN.x, I.LIB_IN.z], UP_ROUTE);
   assert.ok(!r.stuck, `stuck at ${r.at.map((n) => n.toFixed(2))}`);
   assert.equal(r.h, I.LIB.mezz.h);
-  assert.equal(I.libArea(...r.p), 'the reading nook');
+  assert.equal(I.libArea(...r.p, r.h), 'the reading nook');
 });
 
 test('library: the mezzanine\'s edge and the shelves under it are walls; the floor never meets the mezzanine', () => {
-  const up = libRoute([I.LIB_IN.x, I.LIB_IN.z], [[3, -1], [12, -1.8], [13.6, -3.0], [13.6, -4.1], [9.3, -4.0], [6, -3.6], [6, -1.0]]);
+  const up = libRoute([I.LIB_IN.x, I.LIB_IN.z], [[3, -1], [12, -1.8], [13.6, -3.0], [13.6, -4.1], [9.3, -4.0], [6, -3.6], [6, -1.0]]);   // (off the mezzanine's edge, away from the walkway)
   assert.ok(up.h === I.LIB.mezz.h && up.at[1] < I.LIB.mezz.v1, `kept up by the railing (${up.at.map((n) => n.toFixed(2))})`);
   const under = libRoute([I.LIB_IN.x, I.LIB_IN.z], [[4, -1.5], [4, -3.5]]);
   assert.ok(under.h === 0 && under.at[1] > I.LIB.mezz.v1, `kept out by the shelves under it, on the floor (${under.at.map((n) => n.toFixed(2))})`);
   // Every step of the way up changes height by less than a step.
-  for (let u = I.LIB.stairs.u0; u <= I.LIB.stairs.u1; u += 0.05) assert.ok(Math.abs(I.libHeight(u, -4.1) - I.libHeight(u + 0.05, -4.1)) < 0.1);
+  for (let u = I.LIB.stairs.u0; u <= I.LIB.stairs.u1; u += 0.05) assert.ok(Math.abs(I.libFloors(u, -4.1)[0] - I.libFloors(u + 0.05, -4.1)[0]) < 0.1);
 });
 
-test('library: one hop up onto the bench, and the little door is only reached from it (W14)', () => {
-  const r = libRoute([I.LIB_IN.x, I.LIB_IN.z], [[2.2, 2.5], [1.9, 3.6], [1.9, 4.4]]);
-  assert.ok(!r.stuck && r.h === I.LIB.bench.h, 'up on the bench');
-  const want = lib(1.9, 4.75);
-  assert.deepEqual(I.libTouching(r.p[0], r.p[1], want[0], want[1]), { id: 'slide', kind: 'little-door' });
-  const floor = lib(1.9, 3.9), wantF = lib(1.9, 4.2);
-  assert.equal(I.libTouching(floor[0], floor[1], wantF[0], wantF[1]), null, 'not from the floor');
+test('library (step 2b): the L-shaped climb, past the armchair, over the entrance to the bench and the little door', () => {
+  const W = I.LIB.walk;
+  const r = libRoute([I.LIB_IN.x, I.LIB_IN.z], [...UP_ROUTE, [1.5, -2.6], [1.6, -1.0], [1.65, 1.0], [1.7, 3.5], [1.7, 4.42]]);
+  assert.ok(!r.stuck, `stuck at ${r.at.map((n) => n.toFixed(2))} (height ${r.h})`);
+  assert.equal(r.h, W.h1 + I.LIB.bench.h, 'one hop up onto the bench at the walkway\'s end');
+  assert.equal(I.libArea(...r.p, r.h), 'on the bench');
+  const want = lib(1.7, 4.75);
+  assert.deepEqual(I.libTouching(r.p[0], r.p[1], want[0], want[1], r.h), { id: 'slide', kind: 'little-door' });
+  // Not from the walkway beside the bench, nor from the floor below.
+  const w1 = lib(2.0, 3.6), w1w = lib(2.0, 4.2);
+  assert.equal(I.libTouching(w1[0], w1[1], w1w[0], w1w[1], W.h1), null);
+  const f = lib(2.0, 3.6), fw = lib(2.0, 4.6);
+  assert.equal(I.libTouching(f[0], f[1], fw[0], fw[1], 0), null, 'not from the floor');
+  // The walkway climbs from the mezzanine's height and clears the front door (2.4 tall) above it (W34, step 2b).
+  assert.equal(I.walkFloor(W.v0), I.LIB.mezz.h);
+  for (let v = -I.LIB.door; v <= I.LIB.door; v += 0.05) assert.ok(I.walkFloor(v) - 0.16 > 2.4, `the slab over the door at ${v.toFixed(2)}`);
+  // The ceiling: 5.4 over the room, rising over the walkway to about 7 at the little door.
+  assert.equal(I.LIB.ceiling, 5.4);
+  assert.ok(I.libCeiling(1.5, 4.6) > 6.8 && I.libCeiling(1.5, -2.6) === 5.4 && I.libCeiling(6, 4.6) === 5.4);
+  assert.ok(I.libCeiling(1.5, -2.6) - I.LIB.mezz.h >= 1.9 * 1.5, 'at least 50% more headroom over the mezzanine (W34)');
+});
+
+test('library (step 2b): under the walkway on the floor, from the door to the coat stand; you stay downstairs', () => {
+  const r = libRoute([I.LIB_IN.x, I.LIB_IN.z], [[1.6, 0], [1.9, 2.8], [2.0, 3.6]]);
+  assert.ok(!r.stuck && r.h === 0, `on the floor under the walkway (${r.at.map((n) => n.toFixed(2))}, ${r.h})`);
+  const c = lib(1.25, 4.35), cw = lib(1.25, 4.4);
+  assert.ok(!I.libFree(...uv(c), 0), 'the coat stand is in the way downstairs');
+  assert.ok(I.libFree(1.7, 4.35, I.LIB.walk.h1 + I.LIB.bench.h), '... but not up on the bench above it');
+  // Out of the front door from under the walkway.
+  const at = lib(I.LIB.u0 + 0.35, 0), want = lib(I.LIB.u0 + 0.2, 0);
+  assert.deepEqual(I.libTouching(at[0], at[1], want[0], want[1], 0), { id: 'out', kind: 'door-out' });
+  assert.equal(I.libTouching(at[0], at[1], want[0], want[1], 2.9), null, 'not from up on the walkway');
+  // The camera, with you under it, keeps below the walkway.
+  const cam = I.libCamera({ x: lib(1.3, 0.5)[0], y: 2.9, z: lib(1.3, 0.5)[1] }, { x: lib(3.6, 0.5)[0], z: lib(3.6, 0.5)[1] }, 0);
+  const [cu, cv] = uv([cam.x, cam.z]);
+  assert.ok(cu > I.LIB.walk.u1 || cam.y < I.walkFloor(cv) - 0.16, 'not inside the walkway');
 });
 
 test('library: in by the front door facing in, out by it facing the path; both spots free (W33)', () => {
-  assert.ok(I.libFree(...uv([I.LIB_IN.x, I.LIB_IN.z])), 'inside spot free');
+  assert.ok(I.libFree(...uv([I.LIB_IN.x, I.LIB_IN.z]), 0), 'inside spot free');
   const [u, v] = uv([I.LIB_IN.x, I.LIB_IN.z]);
   assert.ok(u > I.LIB.u0 && Math.abs(v) < 0.1);
   const at = lib(I.LIB.u0 + 0.35, 0), want = lib(I.LIB.u0 + 0.2, 0);
-  assert.deepEqual(I.libTouching(at[0], at[1], want[0], want[1]), { id: 'out', kind: 'door-out' });
+  assert.deepEqual(I.libTouching(at[0], at[1], want[0], want[1], 0), { id: 'out', kind: 'door-out' });
   assert.ok(L.canStand(I.LIB_OUT.x, I.LIB_OUT.z, forest()), 'outside spot is on the path');
   // From outside, walking into the library's door is what brings you in.
   const f = L.world(L.FRAMES.slide, L.LIBRARY.front - 0.35, 0);
