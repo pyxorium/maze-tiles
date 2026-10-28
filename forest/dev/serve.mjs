@@ -2,7 +2,7 @@
 // C:\thunderbird-cafe\maze-tiles, then open:
 //   http://127.0.0.1:5210/dev/host.html      the forest held by a stand-in host (the way in: the forest is ways-only)
 //   http://127.0.0.1:5210/                   the tile on its own: the postcard, as any viewer without a host shows it
-//   http://127.0.0.1:5210/dev/card-art.html  draws the card pictures (icon.png, banner.png) to save
+//   http://127.0.0.1:5210/dev/card-art.html  draws the card pictures (icon.png, banner.jpg) to save
 // It serves forest\tile\ (the built forest.js: after changing forest\src\, run `npm run build-forest` first; it says
 // so if you forget), with the tile's security policy as the tile loader sends it. Only this computer can reach it.
 import http from 'node:http';
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const FOREST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.json': 'application/json' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.json': 'application/json' };
 
 export async function tileCsp() {
   const page = await readFile(path.join(FOREST, 'tile', 'index.html'), 'utf8');

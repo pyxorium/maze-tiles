@@ -6,6 +6,8 @@
 //   node scripts/publish.mjs --again      publish it again, as a new record (a new address), after a change
 //   add --iso to any of these for the isometric step 1 (the frozen snapshot) instead: never needed unless you
 //   choose to publish it too
+//   add --forest to any of these for Winter Forest instead (claude/winter-forest-step3-plan.md, W44): its tile, its
+//   place and its four signposts; the maze, its place and its signpost are never touched (M26)
 //
 // Before publishing the 3D maze it checks that tile\maze.js is built from the current src\ (it rebuilds in
 // memory with the Foundry's esbuild and compares); if not, it stops and says to run `npm run build`.
@@ -21,11 +23,14 @@
 //     again after every publish, so whatever points at the place keeps working;
 //   - the signpost (cafe.thunderbird.way.signpost/maze.obelisk), EMPTY (dormant), and only if it doesn't exist
 //     yet: once you've pointed it somewhere, publishing never touches it.
+// Winter Forest (--forest) the same way: the place winter-forest and the signposts winter-forest.wardrobe, .tree-door,
+// .arch (empty) and .slide (already leading to the maze's place, entrance obelisk: W20), each only if it doesn't exist
+// yet. Before publishing it checks forest\tile\forest.js is built from forest\src\ (npm run build-forest).
 import readline from 'node:readline';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ROOT, TILES, publishFiles, cspOf } from './tiles.mjs';
+import { ROOT, TILES, FOREST_TILES, publishFiles, cspOf } from './tiles.mjs';
 import { ISO_TILES } from '../iso/tiles.mjs';
 import { rawCid } from './lib/cid.js';
 import { publishTile, publishLexicon } from './lib/tile-record.js';
@@ -72,17 +77,20 @@ export async function tileToPublish(id, tiles = TILES) {
   for (const f of files) f.cid = await rawCid(f.bytes);
   const page = new TextDecoder().decode(files.find((f) => f.path === '/').bytes);
   const t = tiles[id];
-  return { id, name: t.name, description: t.description, sizing: t.sizing, generator: GENERATOR, csp: cspOf(page), files };
+  return { id, name: t.name, description: t.description, sizing: t.sizing, generator: t.generator || GENERATOR, csp: cspOf(page), files,
+    ...(t.icon ? { icon: t.icon } : {}), ...(t.screenshot ? { screenshot: t.screenshot } : {}) };
 }
 
-// Is tile/maze.js what src/ builds to now? true, false, or null when the build can't run here.
-export async function bundleCurrent() {
+// Is the tile's script what its source builds to now (tile/maze.js from src/, or forest/tile/forest.js from
+// forest/src/)? true, false, or null when the build can't run here.
+export async function bundleCurrent(id = 'maze', tiles = TILES) {
   try {
-    const { build, OUT } = await import('./build.mjs');
+    const { build, OUT } = await import(tiles[id] && tiles[id].bundle === 'forest' ? '../forest/scripts/build.mjs' : './build.mjs');
     const { js } = await build({ write: false });
     return readFileSync(OUT, 'utf8').replace(/\r\n/g, '\n') === js.replace(/\r\n/g, '\n');
   } catch { return null; }
 }
+const bundleName = (t) => (t.bundle === 'forest' ? { file: 'forest\\tile\\forest.js', src: 'forest\\src\\', cmd: 'npm run build-forest' } : { file: 'tile\\maze.js', src: 'src\\', cmd: 'npm run build' });
 
 export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = console.log, dryRun = false, again = false, tiles = TILES,
   checkBundle = bundleCurrent,
@@ -99,10 +107,12 @@ export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = cons
   const published = readPublished() || {};
   const todo = [];
   for (const id of Object.keys(tiles)) if (again || !published[id]) todo.push(await tileToPublish(id, tiles));
-  if (todo.some((t) => t.id === 'maze')) {
-    const current = await checkBundle();
-    if (current === false) throw new Error('tile\\maze.js is older than src\\: run `npm run build` first (then commit tile\\maze.js). Nothing was published.');
-    if (current === null) log('(Could not rebuild tile\\maze.js here to check it is up to date: make sure you ran `npm run build` after changing src\\.)');
+  for (const t of todo) {
+    if (t.id !== 'maze' && !tiles[t.id].bundle) continue;
+    const b = bundleName(tiles[t.id]);
+    const current = await checkBundle(t.id, tiles);
+    if (current === false) throw new Error(`${b.file} is older than ${b.src}: run \`${b.cmd}\` first (then commit ${b.file}). Nothing was published.`);
+    if (current === null) log(`(Could not rebuild ${b.file} here to check it is up to date: make sure you ran \`${b.cmd}\` after changing ${b.src}.)`);
   }
 
   // Ways: the lexicons (new or changed), the place (after a publish, or if it's missing or behind), and any
@@ -127,7 +137,10 @@ export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = cons
   }
   for (const l of lexiconsDue) log(`  - the lexicon ${l.id}, as com.atproto.lexicon.schema/${l.id}${had[l.id] ? ' (changed)' : ''}`);
   for (const p of placesDue) log(`  - the place ${p.uri}: pointing at the ${todo.some((t) => t.id === p.id) ? 'new tile' : `tile in published.json`}, with its exact version`);
-  for (const sp of signpostsDue) log(`  - the signpost ${sp.uri}, empty (the ${sp.exit} leads nowhere yet)`);
+  for (const sp of signpostsDue) {
+    const to = firstTo(tiles, sp);
+    log(to.length ? `  - the signpost ${sp.uri}, leading to ${to.map((d) => `${d.place || d.tile}${d.entrance ? ` (entrance ${d.entrance})` : ''}`).join(', ')}` : `  - the signpost ${sp.uri}, empty (the ${sp.exit} leads nowhere yet)`);
+  }
   log('It is public. Nothing else in the account is touched.');
   if (dryRun) { log('\nDry run: nothing was written.'); return { changed: false, plan: todo, lexiconsDue: lexiconsDue.map((l) => l.id), placesDue: placesDue.map((p) => p.uri), signpostsDue: signpostsDue.map((s) => s.uri) }; }
 
@@ -183,8 +196,9 @@ export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = cons
     writePublished(out);
   }
   for (const sp of signpostsDue) {
-    log(`\nSetting up the signpost ${sp.rkey} (empty: dormant)…`);
-    const record = { $type: SIGNPOST, to: [], updatedAt: now() };
+    const to = firstTo(tiles, sp);
+    log(`\nSetting up the signpost ${sp.rkey} (${to.length ? 'leading somewhere already' : 'empty: dormant'})…`);
+    const record = { $type: SIGNPOST, to, updatedAt: now() };
     // createRecord, not putRecord: it refuses if the signpost appeared meanwhile, so yours is never overwritten.
     const put = await xrpc('com.atproto.repo.createRecord', { method: 'POST', body: { repo: ACCOUNT, collection: SIGNPOST, rkey: sp.rkey, record } });
     if (!(await recordExists(fetchImpl, pds, SIGNPOST, sp.rkey))) throw new Error(`The signpost ${sp.rkey} didn't read back.`);
@@ -196,6 +210,12 @@ export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = cons
   for (const t of todo) if (published[t.id] && again) log(`The earlier record (${published[t.id].uri}) is still there: delete it in PDSls once you're happy with the new one.`);
   log('Delete this app password (Bluesky: Settings > Privacy and security > App passwords).');
   return { changed: true, published: out };
+}
+
+// Where a new signpost leads at first: the tile's `signposts` (Winter Forest's slide: W20), else nowhere.
+function firstTo(tiles, sp) {
+  const to = tiles[sp.id] && tiles[sp.id].signposts && tiles[sp.id].signposts[sp.exit];
+  return Array.isArray(to) ? to.map((d) => ({ ...d })) : [];
 }
 
 // Does the account hold this record? (Public: no password needed.)
@@ -222,7 +242,8 @@ function makeAsk() {
 if (process.argv[1] && resolve(process.argv[1]).toLowerCase() === fileURLToPath(import.meta.url).toLowerCase()) {
   const args = process.argv.slice(2);
   const io = makeAsk();
-  runPublish({ ask: io.ask, askHidden: io.askHidden, dryRun: args.includes('--dry-run'), again: args.includes('--again'), ...(args.includes('--iso') ? { tiles: ISO_TILES } : {}) })
+  runPublish({ ask: io.ask, askHidden: io.askHidden, dryRun: args.includes('--dry-run'), again: args.includes('--again'),
+    ...(args.includes('--iso') ? { tiles: ISO_TILES } : args.includes('--forest') ? { tiles: FOREST_TILES } : {}) })
     .catch((err) => { console.error(`\n${err.message}`); process.exitCode = 1; })
     .finally(() => io.close());
 }

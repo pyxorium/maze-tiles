@@ -6,7 +6,8 @@ import { mkdtempSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createFakePds } from './fake-pds.mjs';
-import { lookUpWay, parseAtUri, SIGNPOST, PLACE } from '../site/way-page.js';
+import { lookUpWay, parseAtUri, signpostState, testSignposts, SIGNPOST, PLACE } from '../site/way-page.js';
+import { readWays, entranceFor, pathFor, COLOURS } from '../site/travel.js';
 import { copyToSite, wayPages, SITE_FILES, PAGE } from '../scripts/copy-to-site.mjs';
 import { pageCsp } from '../site/page-csp.js';
 import { ACCOUNT } from '../scripts/publish.mjs';
@@ -73,15 +74,68 @@ test('a server that can\'t be reached, or no signpost named: said plainly', asyn
   assert.equal(parseAtUri(`at://${ACCOUNT}/x.y/a b`), null);
 });
 
-test('the page\'s policy: only https lookups and pictures, no frames, no inline scripts', () => {
-  const csp = pageCsp();
+test('the page\'s policy: https lookups and pictures, frames only from the tile loading server, no inline scripts', () => {
+  const csp = pageCsp('load.tiles.lexicographer.space');
   assert.match(csp, /script-src 'self'(;|$)/);
   assert.match(csp, /connect-src 'self' https:/);
-  assert.match(csp, /frame-src 'none'/);
+  assert.match(csp, /frame-src https:\/\/load\.tiles\.lexicographer\.space https:\/\/\*\.tiles\.lexicographer\.space(;|$)/);
+  assert.match(csp, /object-src 'none'/);
+});
+
+// ---- the travel page (site/travel.js; claude/winter-forest-step3-plan.md) ------------------------------------------
+test('test signposts (W41): on this computer only, from the address', () => {
+  const here = { hostname: '127.0.0.1', search: '?sign=maze.obelisk:winter-forest/lamppost&sign=winter-forest.arch:hub/south,maze/obelisk&sign=winter-forest.slide:&sign=bad' };
+  const o = testSignposts(here);
+  assert.deepEqual(o.get('maze.obelisk'), [{ placeName: 'winter-forest', entrance: 'lamppost' }]);
+  assert.deepEqual(o.get('winter-forest.arch'), [{ placeName: 'hub', entrance: 'south' }, { placeName: 'maze', entrance: 'obelisk' }]);
+  assert.deepEqual(o.get('winter-forest.slide'), [], 'nothing after the colon: empty');
+  assert.equal(o.size, 3);
+  assert.equal(testSignposts({ hostname: 'localhost', search: here.search }).size, 3);
+  assert.equal(testSignposts({ hostname: 'thunderbird.cafe', search: here.search }).size, 0, 'the live site ignores it');
+});
+
+test('test signposts stand in for the real one; everything else stays real', async () => {
+  const w = world();
+  w.put(PLACE, 'winter-forest', { $type: PLACE, tile: `at://${ACCOUNT}/ing.dasl.masl/hubtile`, cid: 'bafy-hub-v1', name: 'Winter Forest', updatedAt: 'x' });
+  const overrides = testSignposts({ hostname: '127.0.0.1', search: '?sign=maze.obelisk:winter-forest/lamppost' });
+  assert.equal((await lookUpWay({ signpost: SIGN, fetchImpl: w.fetchImpl })).state, 'dormant', 'the real signpost: empty');
+  const v = await lookUpWay({ signpost: SIGN, fetchImpl: w.fetchImpl, overrides });
+  assert.equal(v.state, 'open');
+  assert.equal(v.doors[0].place, `at://${ACCOUNT}/${PLACE}/winter-forest`);
+  assert.equal(v.doors[0].entrance, 'lamppost');
+  assert.equal(v.doors[0].tile, `at://${ACCOUNT}/ing.dasl.masl/hubtile`);
+  assert.equal(v.doors[0].pinned, 'bafy-hub-v1');
+  assert.equal(await signpostState({ signpost: SIGN, fetchImpl: w.fetchImpl, overrides }), 'open');
+  assert.equal(await signpostState({ signpost: SIGN, fetchImpl: w.fetchImpl }), 'dormant');
+  w.put(SIGNPOST, 'maze.obelisk', { to: [{ place: `at://${ACCOUNT}/${PLACE}/hub` }], updatedAt: 'x' });
+  assert.equal(await signpostState({ signpost: SIGN, fetchImpl: w.fetchImpl }), 'open');
+  const down = async () => new Response('{}', { status: 502 });
+  assert.equal(await signpostState({ signpost: SIGN, fetchImpl: down }), 'dormant', 'unreadable: dormant (the tile says so if walked into)');
+});
+
+test('a destination\'s ways.json, checked; entrances; the address for each exit', () => {
+  const forest = JSON.parse(readFileSync(new URL('../forest/tile/ways.json', import.meta.url), 'utf8'));
+  const maze = JSON.parse(readFileSync(new URL('../tile/ways.json', import.meta.url), 'utf8'));
+  const f = readWays(forest), m = readWays(maze);
+  assert.equal(f.entry, 'ways-only');
+  assert.equal(m.entry, 'open', 'no "entry": an open place');
+  assert.deepEqual(f.exits.map((x) => x.id), ['wardrobe', 'tree-door', 'arch', 'slide']);
+  assert.deepEqual(f.entrances, ['lamppost', 'wardrobe', 'tree-door', 'arch']);
+  assert.equal(entranceFor(f, 'arch'), 'arch');
+  assert.equal(entranceFor(f, 'slide'), 'lamppost', 'an exit only: the first entrance');
+  assert.equal(entranceFor(m, 'obelisk'), 'obelisk');
+  assert.equal(entranceFor(m, null), 'obelisk');
+  assert.equal(readWays({ ...forest, v: 2 }), null);
+  assert.equal(readWays({ ...forest, exits: [{ id: 'x', signpost: 'at://did:plc:abc/app.bsky.feed.post/1' }] }).exits.length, 0, 'an exit naming something other than a signpost is dropped');
+  const pages = wayPages();
+  assert.equal(pathFor(pages, f, 'slide'), '/way/winter-forest/slide/');
+  assert.equal(pathFor(pages, m, 'obelisk'), '/way/maze/obelisk/');
+  assert.equal(pathFor(pages, { ...f, place: 'at://did:plc:someoneelse/cafe.thunderbird.way.place/winter-forest' }, 'slide'), null, 'someone else\'s tile with the same name: no page of ours');
+  for (const p of pages) assert.ok(COLOURS[`${p.tile}/${p.exit}`], `a fade colour for ${p.path}`);
 });
 
 test('copy-to-site: one page per exit, the files copied, and /way/ checked as hidden', () => {
-  assert.deepEqual(wayPages().map((p) => p.path), ['/way/maze/obelisk']);
+  assert.deepEqual(wayPages().map((p) => p.path), ['/way/maze/obelisk', '/way/winter-forest/wardrobe', '/way/winter-forest/tree-door', '/way/winter-forest/arch', '/way/winter-forest/slide']);
   const site = mkdtempSync(path.join(tmpdir(), 'site-'));
   writeFileSync(path.join(site, 'astro.config.mjs'), "const HIDDEN_PAGES = ['/webtiles/rooms-lab/'];\n");
   const notes = [];
@@ -92,6 +146,8 @@ test('copy-to-site: one page per exit, the files copied, and /way/ checked as hi
   assert.ok(existsSync(path.join(site, PAGE)));
   const gen = readFileSync(path.join(site, 'src', 'way', 'pages.generated.js'), 'utf8');
   assert.match(gen, /"signpost": "at:\/\/did:plc:6vxjigxrqizmbo56gojxico3\/cafe\.thunderbird\.way\.signpost\/maze\.obelisk"/);
+  assert.match(gen, /"signpost": "at:\/\/did:plc:6vxjigxrqizmbo56gojxico3\/cafe\.thunderbird\.way\.signpost\/winter-forest\.slide"/);
+  assert.match(gen, /"place": "at:\/\/did:plc:6vxjigxrqizmbo56gojxico3\/cafe\.thunderbird\.way\.place\/winter-forest"/);
   writeFileSync(path.join(site, 'astro.config.mjs'), "const HIDDEN_PAGES = ['/webtiles/rooms-lab/', '/way/'];\n");
   r = copyToSite(site, { log: () => {} });
   assert.equal(r.hidden, true);

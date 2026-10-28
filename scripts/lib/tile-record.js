@@ -1,4 +1,6 @@
-// COPY of rooms-lab/scripts/lib/tile-record.js (Oct 25 2026), unchanged below this line. Tested there and here (test/publish.test.mjs).
+// COPY of rooms-lab/scripts/lib/tile-record.js (Oct 25 2026), unchanged below this line except one change for Winter
+// Forest (Oct 28): a tile may name its own icon and card picture (tile.icon, tile.screenshot; the forest's banner is a
+// JPEG), else /icon.png and /banner.png as before. Tested there and here (test/publish.test.mjs).
 // COPY of daisy-tiles/scripts/lib/tile-record.js (Oct 23 2026), unchanged below this line. Tested there and here
 // (test/publish.test.mjs).
 // Copied from sevenup-tiles/scripts/lib/tile-record.js (Oct 18), unchanged.
@@ -32,8 +34,8 @@ export function buildManifest(tile, blobRefs) {
   }
   const manifest = { name: tile.name };
   if (tile.description) manifest.description = tile.description;
-  manifest.icons = [{ src: '/icon.png' }];
-  manifest.screenshots = [{ src: '/banner.png' }];
+  manifest.icons = [{ src: tile.icon || '/icon.png' }];
+  manifest.screenshots = [{ src: tile.screenshot || '/banner.png' }];
   if (tile.sizing) manifest.sizing = tile.sizing;
   if (tile.generator) manifest.generator = tile.generator;
   manifest.resources = resources;

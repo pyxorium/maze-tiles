@@ -1,5 +1,6 @@
 // A browser check of the way page (site/, the fallback for an exit: https://thunderbird.cafe/way/maze/obelisk)
-// with Playwright, as it will be built: way-main.js bundled into one script (Astro does the same), the page's
+// with Playwright: the page of cards alone (way-page.js's start(), no tile loader; the travel page is
+// check_travel.mjs's) bundled into one script as Astro does, the page's
 // security policy as a <meta> tag, and stand-ins for plc.directory and the account's server (test/fake-pds.mjs)
 // answering at their addresses. Run in the build chat: node test/browser/check_way_page.mjs [folder for screenshots]
 // Needs esbuild (the Foundry's, or NODE_PATH) and Playwright.
@@ -22,10 +23,11 @@ if (OUT) mkdirSync(OUT, { recursive: true });
 
 let failures = 0;
 const ok = (cond, msg) => { console.log(`${cond ? 'ok  ' : 'FAIL'} ${msg}`); if (!cond) failures++; };
-const js = (await esbuild.build({ entryPoints: [path.join(ROOT, 'site', 'way-main.js')], bundle: true, format: 'esm', minify: true, write: false })).outputFiles[0].text;
+// The page of cards alone (way-page.js's start(), no tile loader): the travel page itself is check_travel.mjs's.
+const js = (await esbuild.build({ stdin: { contents: "import { start } from './way-page.js'; start();", resolveDir: path.join(ROOT, 'site') }, bundle: true, format: 'esm', minify: true, write: false })).outputFiles[0].text;
 const css = readFileSync(path.join(ROOT, 'site', 'way.css'), 'utf8');
 const exit = WAYS.exits[0];
-const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${pageCsp()}">
+const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${pageCsp('load.tiles.lexicographer.space')}">
 <meta name="robots" content="noindex, nofollow"><title>Where the Escher maze's obelisk leads</title><link rel="stylesheet" href="/_astro/way.css"></head>
 <body><main id="way" data-signpost="${exit.signpost}" data-from="the Escher maze's obelisk"></main><script type="module" src="/_astro/way.js"></script></body></html>`;
 

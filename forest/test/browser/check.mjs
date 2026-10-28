@@ -76,7 +76,7 @@ const towards = (id, u, v = 0) => { const f = L.FRAMES[id]; const [x, z] = L.wor
   await page.waitForTimeout(2200);
   const s = await page.evaluate(() => ({ card: !document.getElementById('postcard').hidden, line: document.getElementById('pcline').classList.contains('show'), lineText: document.getElementById('pcline').textContent, stage: document.getElementById('stage').hidden, img: document.querySelector('#postcard img').naturalWidth, bar: getComputedStyle(document.getElementById('bar')).display, ways: window.__forest.state().ways, entered: window.__forest.state().entered }));
   ok(s.card && s.stage && !s.entered, 'opened on its own: the postcard, and the forest not entered');
-  ok(s.img === 1280, 'the postcard is the card picture (banner.png, 1280 wide)');
+  ok(s.img === 1280, 'the postcard is the card picture (banner.jpg, 1280 wide)');
   ok(s.line && s.lineText === 'This place is reached through other places.', 'the quiet line shows (W23)');
   ok(s.bar === 'none', 'no buttons on the postcard');
   ok(s.ways === 'plain', 'no host: plain');

@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runPublish, ACCOUNT, PLACE, SIGNPOST } from '../scripts/publish.mjs';
-import { publishFiles, TILES } from '../scripts/tiles.mjs';
+import { publishFiles, TILES, FOREST_TILES } from '../scripts/tiles.mjs';
 import { ISO_TILES } from '../iso/tiles.mjs';
 import { readFileSync, readdirSync } from 'node:fs';
 import { createFakePds } from './fake-pds.mjs';
@@ -175,4 +175,78 @@ test('ways: a changed lexicon is published again; a signpost that appears meanwh
   // createRecord refuses a key that's taken: the stand-in does as a real server.
   const res = await pds.fetchImpl('https://pds.test/xrpc/com.atproto.repo.createRecord', { method: 'POST', headers: { Authorization: 'Bearer fake-jwt' }, body: JSON.stringify({ repo: ACCOUNT, collection: SIGNPOST, rkey: 'maze.obelisk', record: { to: [] } }) });
   assert.equal(res.status, 400);
+});
+
+// ---- Winter Forest (--forest; claude/winter-forest-step3-plan.md, W42 to W45) ---------------------------------------
+const MAZE_PLACE = `at://${ACCOUNT}/${PLACE}/maze`;
+test('--forest: the forest\'s tile, its place and four signposts (the slide already leading to the maze\'s obelisk)', async () => {
+  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+  const maze = await run(pds);                                              // the maze, published before (as live)
+  const mazeKeys = [...pds.records.keys()].filter((k) => !k.startsWith('com.atproto.lexicon'));
+  const mazeBefore = Object.fromEntries(mazeKeys.map((k) => [k, JSON.stringify(pds.records.get(k))]));
+  const dry = await run(pds, { tiles: FOREST_TILES, published: maze.published, dryRun: true });
+  assert.deepEqual(dry.plan.map((t) => t.id), ['winter-forest']);
+  assert.deepEqual(dry.lexiconsDue, [], 'the lexicons are already published');
+  assert.deepEqual(dry.placesDue, [`at://${ACCOUNT}/${PLACE}/winter-forest`]);
+  assert.deepEqual(dry.signpostsDue, ['wardrobe', 'tree-door', 'arch', 'slide'].map((x) => `at://${ACCOUNT}/${SIGNPOST}/winter-forest.${x}`));
+  const r = await run(pds, { tiles: FOREST_TILES, published: maze.published });
+  const p = r.published['winter-forest'];
+  const value = pds.records.get(`ing.dasl.masl/${p.uri.split('/').pop()}`).value;
+  assert.equal(value.tile.name, 'Winter Forest');
+  assert.equal(value.tile.description, 'A snowy night forest. A lamp post glows in a clearing, and four winding paths lead to a wardrobe, a great old tree, a stone arch and a small library. This place is reached through other places.');
+  assert.equal(value.tile.generator, 'Winter Forest');
+  assert.deepEqual(value.tile.icons, [{ src: '/icon.png' }]);
+  assert.deepEqual(value.tile.screenshots, [{ src: '/banner.jpg' }], 'the card picture is the JPEG (W45)');
+  assert.deepEqual(Object.keys(value.tile.resources).sort(), ['/', '/banner.jpg', '/forest.css', '/forest.js', '/icon.png', '/ways.json']);
+  assert.equal(value.tile.resources['/banner.jpg']['content-type'], 'image/jpeg');
+  assert.match(value.tile.resources['/']['content-security-policy'], /connect-src 'self'/);
+  const place = pds.records.get(`${PLACE}/winter-forest`).value;
+  assert.deepEqual(place, { $type: PLACE, tile: p.uri, cid: p.cid, name: 'Winter Forest', updatedAt: '2026-10-25T12:00:00.000Z' });
+  for (const x of ['wardrobe', 'tree-door', 'arch']) assert.deepEqual(pds.records.get(`${SIGNPOST}/winter-forest.${x}`).value.to, [], `${x}: empty`);
+  assert.deepEqual(pds.records.get(`${SIGNPOST}/winter-forest.slide`).value, { $type: SIGNPOST, to: [{ place: MAZE_PLACE, entrance: 'obelisk' }], updatedAt: '2026-10-25T12:00:00.000Z' }, 'the slide: the maze\'s obelisk (W20)');
+  for (const k of mazeKeys) assert.equal(JSON.stringify(pds.records.get(k)), mazeBefore[k], `${k} untouched`);
+  assert.equal(r.published.maze.uri, maze.published.maze.uri, 'the maze stays as published');
+  assert.equal(r.published.places.maze.uri, maze.published.places.maze.uri);
+});
+
+test('--forest --again: a new forest record and its place moved to it; the maze and every signpost untouched', async () => {
+  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+  const maze = await run(pds);
+  const first = await run(pds, { tiles: FOREST_TILES, published: maze.published });
+  pds.records.set(`${SIGNPOST}/winter-forest.arch`, { value: { $type: SIGNPOST, to: [{ place: `at://${ACCOUNT}/${PLACE}/second-forest`, entrance: 'arch' }], updatedAt: 'x' }, cid: 'bafy-owner' });
+  const slideBefore = JSON.stringify(pds.records.get(`${SIGNPOST}/winter-forest.slide`));
+  const calm = await run(pds, { tiles: FOREST_TILES, published: first.published });
+  assert.equal(calm.changed, false, 'published once: nothing to do');
+  const again = await run(pds, { tiles: FOREST_TILES, published: first.published, again: true });
+  assert.notEqual(again.published['winter-forest'].uri, first.published['winter-forest'].uri);
+  const place = pds.records.get(`${PLACE}/winter-forest`).value;
+  assert.equal(place.tile, again.published['winter-forest'].uri);
+  assert.equal(place.cid, again.published['winter-forest'].cid);
+  assert.equal(pds.records.get(`${SIGNPOST}/winter-forest.arch`).value.to[0].place, `at://${ACCOUNT}/${PLACE}/second-forest`, 'your arch is yours');
+  assert.equal(JSON.stringify(pds.records.get(`${SIGNPOST}/winter-forest.slide`)), slideBefore);
+  assert.equal(again.published.maze.uri, maze.published.maze.uri);
+});
+
+test('--forest: an out-of-date forest.js stops publishing, and says which build to run', async () => {
+  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+  let asked = null;
+  await assert.rejects(run(pds, { tiles: FOREST_TILES, checkBundle: async (id) => { asked = id; return false; } }), /forest\\tile\\forest\.js is older than forest\\src\\: run `npm run build-forest`/);
+  assert.equal(asked, 'winter-forest');
+  assert.ok(!pds.calls.some((c) => c.includes('uploadBlob')));
+});
+
+test('the forest stays about its planned size, its page has no inline script, and its code reaches for nothing outside', () => {
+  const files = publishFiles('winter-forest', FOREST_TILES);
+  const banner = files.find((f) => f.path === '/banner.jpg');
+  assert.ok(banner.bytes.length >= 100 * 1024 && banner.bytes.length <= 160 * 1024, `the banner is ${(banner.bytes.length / 1024).toFixed(0)} KB (W45: about 120 to 150)`);
+  assert.deepEqual([...banner.bytes.slice(0, 3)], [0xff, 0xd8, 0xff], 'a JPEG');
+  const all = files.reduce((n, f) => n + f.bytes.length, 0);
+  assert.ok(all < 1024 * 1024, `the whole forest is ${(all / 1024).toFixed(0)} KB`);
+  const page = new TextDecoder().decode(files.find((f) => f.path === '/').bytes);
+  assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(page), 'no inline script');
+  assert.ok(/<img src="\.\/banner\.jpg"/.test(page), 'the postcard is the JPEG');
+  for (const f of readdirSync(new URL('../forest/src/', import.meta.url))) {
+    const text = readFileSync(new URL(`../forest/src/${f}`, import.meta.url), 'utf8');
+    assert.ok(!/\bfetch\(|XMLHttpRequest|WebSocket|eval\(|new Function/.test(text), `forest/src/${f} reaches for nothing outside the tile`);
+  }
 });

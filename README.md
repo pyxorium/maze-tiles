@@ -23,7 +23,7 @@ Where it leads is never in the maze: its signpost, a record in thunderbird.cafe'
 page holding the tile (a host such as Raku or the Rooms lab, one day) can read it. With a host that says it leads
 somewhere, its tip glows and stepping in sends you on; with an empty signpost it says "This doesn't lead anywhere
 yet."; with no host at all (lexicographer.space, a gallery) it offers https://thunderbird.cafe/way/maze/obelisk
-in a new tab, which says where it leads. See "Ways" below.
+in a new tab, the travel page, which takes you where it leads. See "Ways" below.
 
 **Map** (or M) shows the rooms you've found and the ways you've taken. The gear menu also has **Back to the
 start** (the map is kept) and **Reduce motion** (taken from the device's own setting): the fall and the
@@ -40,16 +40,18 @@ swoop through doorways become quick fades. Nothing is saved: a reload starts aga
   and three.js bundled into one script by `npm run build`), `ways.json` (its ways in and out), and the card
   pictures `icon.png` and `banner.png`.
 - `lexicons\` the two record kinds for ways: `cafe.thunderbird.way.place` and `cafe.thunderbird.way.signpost`.
-- `site\` the fallback pages for exits (https://thunderbird.cafe/way/maze/obelisk), copied into the site by
-  `scripts\copy-to-site.mjs`.
+- `site\` the way pages for exits (https://thunderbird.cafe/way/maze/obelisk and Winter Forest's four), travel pages
+  since Winter Forest's step 3 (`travel.js`), copied into the site by `scripts\copy-to-site.mjs`.
 - `dev\` `npm run dev`: the maze on this computer at http://127.0.0.1:5200/, in tile-sized frames at
   http://127.0.0.1:5200/dev/frame.html, held by a stand-in host at http://127.0.0.1:5200/dev/host.html (the
   obelisk open, dormant, or no host; send a traveller in), and the card pictures at
   http://127.0.0.1:5200/dev/card-art.html.
 - `test\` `npm test`: the map's rules (every link honest, nothing traps you, the loop, the drop, the closet,
   the rooms suited to over the shoulder), walking (free and step and turn, the hole, every opening placed right,
-  two deep), publishing to a stand-in server. `test\browser\check.mjs` walks the whole maze in a browser (needs
-  Playwright; run in the build chat).
+  two deep), publishing to a stand-in server, the way pages. `test\browser\check.mjs` walks the whole maze in a
+  browser; `test\browser\check_travel.mjs` takes the trip on the travel page through a replica of the tile loading
+  server (`loader-replica.mjs`); `test\browser\check_way_page.mjs` the page of cards (all need Playwright; run in the
+  build chat).
 - `scripts\` `build.mjs` builds `tile\maze.js`; `publish.mjs` publishes the tile from thunderbird.cafe; `lib\`
   holds the record-building code copied from rooms-lab (the Foundry's own).
 - `iso\` the isometric step 1, frozen: its own tile, map copy, dev page (`npm run dev-iso`,
@@ -81,7 +83,7 @@ lexicons (once, or when changed), points the place at the new tile, and creates 
 none yet. The lexicons need a TXT record at Wix, once: host `_lexicon.way`, value
 `did=did:plc:6vxjigxrqizmbo56gojxico3` (as `_lexicon.daisy` and `_lexicon.rooms`). After a change, `node scripts/publish.mjs --again`
 publishes a new record (a new address); delete the old one in PDSls once the new one works. Add `--iso` to
-publish the isometric step 1 instead (only if you want it published too).
+publish the isometric step 1 instead (only if you want it published too), or `--forest` for Winter Forest (below).
 
 ## Ways
 
@@ -104,23 +106,55 @@ can move to a shared standard if one appears.
 - **Addresses** follow `https://thunderbird.cafe/way/<tile id>/<exit id>`; a tile id is chosen once and never
   reused (`maze`; a second maze would be `maze-2`).
 
-The fallback pages: after changing `site\` or a `ways.json`, run `node scripts/copy-to-site.mjs` here (it writes
-into `C:\thunderbird-cafe\pyxorium.github.io`), then build and push the site. They're hidden (`/way/` is in the
+**The travel page** (`site\travel.js`; claude/winter-forest-step3-plan.md, W39 to W41, and W17 and W26 in
+claude/winter-forest-plan.md). Every exit's address is a travel page: it reads the exit's signpost and takes you
+there in the same tab, loading the destination with the site's tile loader (pinned to the version its place names,
+every file checked), answering its `hello` with which of its exits lead somewhere, and sending `arrive`. When the
+tile says `leave`, it reads that exit's signpost and carries you on. Empty: "This doesn't lead anywhere yet.";
+several destinations: "Pick a door" (on the way out of a place, with "Stay here"). The tile fills the window under a
+slim bar (the place's name and whose it is, Back, "Open in Raku" for open places; on phones a thin tab you tap).
+Between places a screen in the portal's colour with the next place's name; on first opening (a new tab, a reload, a
+shared link) it waits for **Step through**, which lets the tile's sound start and gives it the keys. A trip that
+fails: "The way is blocked." and you're back at the portal you left by. The address follows the last way taken
+(after the forest's slide, `/way/winter-forest/slide/`), so a reload or shared link replays that leg, and the
+browser's Back and Forward step along the trail.
+
+**Test signposts** (this computer only, `127.0.0.1` or `localhost`): add `?sign=<signpost>:<place>/<entrance>` to a
+way page's address, and that signpost counts as filled (several destinations with commas; nothing after the colon:
+empty; several signposts: several `sign=`). The bar shows "test signposts". Everything else is real. The live site
+ignores it. For the forest before the obelisk is pointed:
+`http://127.0.0.1:4321/way/maze/obelisk/?sign=maze.obelisk:winter-forest/lamppost`
+
+After changing `site\` or a `ways.json`, run `node scripts/copy-to-site.mjs` here (it writes into
+`C:\thunderbird-cafe\pyxorium.github.io`), then build and push the site. The pages are hidden (`/way/` is in the
 site's `HIDDEN_PAGES`).
 
 ## Winter Forest (`forest\`)
 
 The obelisk's first destination: a snowy forest at night, a lamp post in a clearing, four winding paths to four
 portals (the wardrobe, the tree-door, the stone arch, and the library's slide back to the maze). Plan:
-claude/winter-forest-plan.md in the Foundry project (decisions W1 to W38). **Steps 1, 2 and 2b of 3:** the clearing
+claude/winter-forest-plan.md in the Foundry project (decisions W1 to W38) and claude/winter-forest-step3-plan.md (W39
+to W45). **Steps 1, 2, 2b and 3:** the clearing
 with its settings (W6), the paths (the wardrobe's about 45 blocks with one bend, hidden from the clearing: W32), the
 four portals with their dormant and open looks and their going-through moments; the tunnel inside the great tree
 (bigger on the inside, the plank door halfway, its lantern); the library inside, bigger than its outside (shelves,
 tables and lamps, the fireplace, open books, the rolling ladder, a coat stand by the door, the stairs up to the
 mezzanine and its reading nook, then a walkway turning over the entrance under a rising ceiling, a crow on its
 railing watching you pass, and at its end the bench and the figurine-sized door); the shrink and the slide ride (wood, ice through the forest, the Great Hall's blue); the new
-places' sounds; the four entrances, `ways.json`, the postcard. Step 3 is the travel page and publishing. Not
-published yet.
+places' sounds; the four entrances, `ways.json`, the postcard; then (step 3) the travel page above and publishing.
+
+**Publishing it** (`--forest`: the forest only; the maze, its place and its signpost are never touched), in
+`C:\thunderbird-cafe\maze-tiles`:
+
+```
+node scripts/publish.mjs --forest --dry-run
+node scripts/publish.mjs --forest
+```
+
+It checks `forest\tile\forest.js` is built from `forest\src\`, publishes the tile (name and description: W42), the
+place `winter-forest`, and the signposts `winter-forest.wardrobe`, `.tree-door` and `.arch` (empty) and
+`winter-forest.slide` (already leading to the maze's place, entrance `obelisk`: W20), each signpost only if it
+doesn't exist. `--forest --again` publishes a new record and moves the place to it; signposts are never touched.
 
 - **Ways-only** (W16): opened directly (any viewer without a host) it shows its postcard, "This place is reached
   through other places."; only a host's `arrive` lets you in. Its `ways.json` says `"entry": "ways-only"`.
@@ -131,13 +165,14 @@ published yet.
   `postcard.js`. It uses the maze's `src\controls.js` as it is; nothing in the maze's `src\` is changed (W27).
 - The library and the tunnel are drawn over the forest (the forest first, then the room with its own lights), so the
   library's windows and the tunnel's mouth show the real forest, live.
-- `forest\tile\` the tile: `index.html`, `forest.css`, `forest.js` (built), `ways.json`, `icon.png`, `banner.png`.
+- `forest\tile\` the tile: `index.html`, `forest.css`, `forest.js` (built), `ways.json`, `icon.png`, `banner.jpg`
+  (the card picture and the postcard, a JPEG of about 140 KB: W45).
 - `npm run build-forest` builds `forest\tile\forest.js` (three.js and esbuild from the Foundry's folder, as the
   maze's build). Commit `forest\tile\forest.js` after building.
 - `npm run dev-forest`: http://127.0.0.1:5210/dev/host.html holds the forest in a stand-in host (choose where each
   portal leads, send a traveller in at each entrance; after you leave, it can bring you back through the same
   portal); http://127.0.0.1:5210/ is the tile on its own (the postcard); http://127.0.0.1:5210/dev/card-art.html
-  draws the card pictures.
+  draws the card pictures (save the banner as `banner.jpg`).
 - `test\winter-forest.test.mjs` and `test\winter-forest-inside.test.mjs` (part of `npm test`): `ways.json`, the
   messages, the settings, every entrance a place you can stand, every path walkable from the lamp post to its portal,
   the wardrobe hidden from the clearing; the library (up the stairs to the nook, the mezzanine's edge, the bench and

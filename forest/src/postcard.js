@@ -1,4 +1,4 @@
-// postcard.js: what Winter Forest shows until a host brings you in (W16, W23): the card's picture (banner.png)
+// postcard.js: what Winter Forest shows until a host brings you in (W16, W23): the card's picture (banner.jpg)
 // filling the tile, snow still falling gently over it (so it doesn't look broken or frozen), and after a moment the
 // quiet line "This place is reached through other places." (it waits a little, so a normal arrival never shows it).
 let raf = 0, lineTimer = 0;

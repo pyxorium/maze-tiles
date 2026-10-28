@@ -1,5 +1,6 @@
-// tiles.mjs: what goes into the maze tile (modelled on rooms-lab/scripts/tiles.mjs), for publish.mjs.
-//   maze   the Escher maze over the shoulder: twelve rooms in 3D, no tile behind the Lantern room's door yet
+// tiles.mjs: what goes into each tile (modelled on rooms-lab/scripts/tiles.mjs), for publish.mjs and copy-to-site.mjs.
+//   maze            the Escher maze over the shoulder: twelve rooms in 3D (TILES; publish.mjs)
+//   winter-forest   Winter Forest, the hub beyond the obelisk (FOREST_TILES; publish.mjs --forest)
 // The isometric step 1 (the frozen snapshot) has its own settings in iso/tiles.mjs (publish.mjs --iso).
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, extname } from 'node:path';
@@ -20,8 +21,35 @@ export const TILES = {
 // Card pictures, drawn from the 3D rooms by dev/card-art.html.
 export const CARD_FILES = ['icon.png', 'banner.png'];
 
+// Winter Forest (claude/winter-forest-plan.md, W1 to W38; claude/winter-forest-step3-plan.md, W42 to W45). Published
+// on its own with publish.mjs --forest, so publishing it never touches the maze (M26).
+const ACCOUNT_DID = 'did:plc:6vxjigxrqizmbo56gojxico3';
+export const FOREST_TILES = {
+  'winter-forest': {
+    name: 'Winter Forest',
+    description: 'A snowy night forest. A lamp post glows in a clearing, and four winding paths lead to a wardrobe, a great old tree, a stone arch and a small library. This place is reached through other places.',
+    sizing: { width: 640, height: 480 },
+    folder: 'forest/tile',
+    files: ['index.html', 'forest.css', 'forest.js', 'ways.json'],
+    cards: ['icon.png', 'banner.jpg'],            // the banner is also the postcard (W23), a JPEG since W45
+    icon: '/icon.png',
+    screenshot: '/banner.jpg',
+    cardArt: 'npm run dev-forest, then http://127.0.0.1:5210/dev/card-art.html',
+    bundle: 'forest',                             // publish.mjs checks forest/tile/forest.js is built from forest/src/
+    generator: 'Winter Forest',
+    ways: true,
+    // Signposts set up when first published (W20): the slide leads back to the maze's obelisk; the others start empty.
+    // A signpost that already exists is never touched.
+    signposts: {
+      slide: [{ place: `at://${ACCOUNT_DID}/cafe.thunderbird.way.place/maze`, entrance: 'obelisk' }],
+    },
+  },
+};
+// Every tile with ways, for the site's way pages (copy-to-site.mjs).
+export const WAY_TILES = { ...TILES, ...FOREST_TILES };
+
 // The Foundry's one fixed type per kind of file (web-tile-foundry/src/core/fileset.js CONTENT_TYPES).
-export const PUBLISH_TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' };
+export const PUBLISH_TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.json': 'application/json' };
 
 // The tile's own security policy, from its page's <meta> tag (it also goes in the record, as the Foundry does).
 export function cspOf(html) {
@@ -34,9 +62,10 @@ export function cspOf(html) {
 export function publishFiles(id, tiles = TILES) {
   const t = tiles[id];
   const out = [];
-  for (const f of [...t.files, ...CARD_FILES]) {
+  const cards = t.cards || CARD_FILES;
+  for (const f of [...t.files, ...cards]) {
     const file = join(ROOT, t.folder, f);
-    if (!existsSync(file)) throw new Error(`Missing ${t.folder}/${f}${CARD_FILES.includes(f) ? ` (draw it: ${t.cardArt || 'npm run dev, then http://127.0.0.1:5200/dev/card-art.html'})` : ''}`);
+    if (!existsSync(file)) throw new Error(`Missing ${t.folder}/${f}${cards.includes(f) ? ` (draw it: ${t.cardArt || 'npm run dev, then http://127.0.0.1:5200/dev/card-art.html'})` : ''}`);
     const path = f === 'index.html' ? '/' : `/${f}`;
     out.push({ path, bytes: new Uint8Array(readFileSync(file)), contentType: PUBLISH_TYPES[extname(f)] });
   }
