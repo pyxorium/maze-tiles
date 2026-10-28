@@ -506,7 +506,9 @@ resize();
 // For the browser check and the card pictures (forest/test/browser/check.mjs, forest/dev/card-art.html) only; nothing
 // on the page calls these.
 window.__forest = {
-  state: () => ({ phase, place, entered, crowLook: library.crow.look, x: fig.x, z: fig.z, y: fig.y, level: fig.level, yaw: fig.yaw, size: fig.size, area: lastArea, ways: ways.mode, exits: Object.fromEntries(WAYS.exits.map((e) => [e.id, ways.state(e.id)])), anim: anim && anim.kind, part: anim && anim.part, leftBy, reduceMotion, archOpen: portals.parts.arch.faceMat.uniforms.open.value, wardrobeGlow: portals.parts.wardrobe.lineMat.opacity, cam: [camera.position.x, camera.position.z, camera.position.y] }),
+  state: () => ({ phase, place, entered, crowLook: library.crow.look, x: fig.x, z: fig.z, y: fig.y, level: fig.level, yaw: fig.yaw, size: fig.size, area: lastArea, ways: ways.mode, exits: Object.fromEntries(WAYS.exits.map((e) => [e.id, ways.state(e.id)])), anim: anim && anim.kind, part: anim && anim.part, leftBy, reduceMotion, archOpen: portals.parts.arch.faceMat.uniforms.open.value, wardrobeGlow: portals.parts.wardrobe.lineMat.opacity, cam: [camera.position.x, camera.position.z, camera.position.y],
+    // Where the figure is in the view (-1 to 1 across and up; W46's check that you stay in the middle on the slide).
+    figView: (() => { const v = new THREE.Vector3(); figure.getWorldPosition(v); v.y += 0.5 * fig.size; v.project(camera); return [v.x, v.y]; })() }),
   jump(x, z, yaw, where, level) { if (where && where !== place) setPlace(where); Object.assign(fig, { x, z, yaw }); fig.level = place === 'library' ? (level ?? libHeightAt(x, z)) : 0; fig.y = floorAt(x, z); cam.ready = false; touched = null; setWhere(areaHere()); },
   held, stick,
   timeScale: 1,                 // the browser check slows the moments down to look at them

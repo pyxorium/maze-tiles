@@ -251,8 +251,11 @@ const towards = (id, u, v = 0) => { const f = L.FRAMES[id]; const [x, z] = L.wor
   await until(page, async (p) => (await st(p)).size < 0.3, null, 20000);
   ok((await st(page)).size < 0.3, 'you shrink to the little door\'s size');
   const parts = new Set();
-  await until(page, async (p) => { const s = await st(p); if (s.part) parts.add(s.part); if (s.part === 'ice' && !parts.shot) { parts.shot = true; await shot(p, '08-ride-ice'); } return (await hostLog(p)).some((m) => m.kind === 'leave' && m.exit === 'slide'); }, null, 40000);
+  const woodView = [];          // where the figure sits in the view on the wood (W46: in the middle)
+  await until(page, async (p) => { const s = await st(p); if (s.part) parts.add(s.part); if (s.part === 'wood' && s.anim === 'ride') woodView.push(s.figView); if (s.part === 'wood' && woodView.length === 6) await shot(p, '08-ride-wood'); if (s.part === 'ice' && !parts.shot) { parts.shot = true; await shot(p, '08-ride-ice'); } return (await hostLog(p)).some((m) => m.kind === 'leave' && m.exit === 'slide'); }, null, 90000);
   ok(['wood', 'ice', 'blue'].every((x) => parts.has(x)), `the ride: wood, ice, blue (${[...parts].join(', ')})`);
+  const worst = woodView.reduce((m, v) => Math.max(m, Math.abs(v[0])), 0);
+  ok(woodView.length >= 3 && worst < 0.12, `on the wood you stay in the middle of the view (W46): at most ${worst.toFixed(3)} off centre across ${woodView.length} looks`);
   ok((await hostLog(page)).some((m) => m.kind === 'leave' && m.exit === 'slide'), 'way.leave with exit "slide"');
   const home = await until(page, async (p) => { const s = await st(p); return s.phase === 'walking' && near(s, L.ENTRANCES.lamppost) && s.size === 1; }, null, 20000);
   ok(home, 'nobody takes you on after the slide: back at the lamp post, full size (W19)');

@@ -1,9 +1,12 @@
-// ride.js: the slide ride (W15; step 2 of W28), played by itself in about 8 seconds once you've shrunk and slipped
+// ride.js: the slide ride (W15; step 2 of W28; W46), played by itself in about 9 seconds once you've shrunk and slipped
 // through the library's little door (W14): you're figurine-sized now, so the chute is only a hand's width across.
 //   1. the wood   a polished wooden chute spiralling down through the library's walls and then among roots and earth,
-//                 small warm lights flicking past (a scene of its own: the shaft under the library)
+//                 small warm lights flicking past (a scene of its own: the shaft under the library). Since W46 a calm,
+//                 even glide of 4 s, the camera aimed at you (a small lead ahead) so you stay in the middle of the view:
+//                 in this tight spiral, a camera aimed further along the chute left you well off to the left
 //   2. the ice    bursting out of a snowbank behind the library into a clear ice run that winds back through the night
-//                 forest beside it (laid in the forest itself: layout.js ICE_RUN; you can find it from outside, too)
+//                 forest beside it (laid in the forest itself: layout.js ICE_RUN; you can find it from outside, too).
+//                 Since W46 it starts at the wood's speed and eases up to full speed over its first third
 //   3. the blue   the run dives into a hollow glowing the blue of the maze's Great Hall; the forest hands you on
 // main.js drives it: rideAt(t) says where the rider and the camera are, and which scene to draw.
 import * as THREE from 'three';
@@ -11,7 +14,11 @@ import { iceRunPoints, ICE_RUN_END } from './layout.js';
 import { col, glowTexture } from './scene.js';
 import { woodTexture, barkTexture } from './textures.js';
 
-export const RIDE = { wood: 3.0, ice: 3.6, blue: 1.5 };         // seconds for each part
+// Seconds: the wood; the ice at full speed (as before W46: how fast full speed is; easing up makes it a little longer,
+// worked out in createRide); the blue dive.
+export const RIDE = { wood: 4.0, ice: 3.6, blue: 1.5 };
+export const WOOD_LEAD = 0.12;           // on the wood, the camera looks at you, this far towards the chute ahead (W46)
+export const EASE_SHARE = 1 / 3;         // the ice eases up to full speed over this share of its time
 export const HALL_BLUE = '#4260b0';                               // the maze's Great Hall accent (rgb 66, 96, 176)
 
 // A half-pipe along a curve: the lower half of a ring round the curve at every sample (open at the top).
@@ -111,23 +118,42 @@ export function createRide({ forest, groundAt }) {
   }
   forest.add(iceGroup);
 
-  // Where the rider and the camera are t seconds into the ride: { part, scene: 'ride' | 'forest', rider, cam, look, k }.
-  const total = RIDE.wood + RIDE.ice + RIDE.blue;
+  // The pace (W46). The wood: an even glide, its whole length in RIDE.wood. The ice (its first 90%, before the dive):
+  // starting at the wood's speed, easing up to full speed (as fast as before W46) over EASE_SHARE of its time, then on
+  // at full speed; its time is worked out so it still covers the same run. Speeds here are shares of the ice run a second.
+  const woodLen = woodCurve.getLength(), iceLen = iceCurve.getLength();
+  const vFull = 0.9 / RIDE.ice, vStart = Math.min(vFull, (woodLen / RIDE.wood) / iceLen);
+  const iceTime = 0.9 / (vFull - (vFull - vStart) * EASE_SHARE / 2), easeTime = iceTime * EASE_SHARE;
+  // How far along the ice (0 to 0.9) after s seconds on it, and how fast (a share of full speed).
+  function iceAt(s) {
+    if (s < easeTime) {
+      const x = s / easeTime;                                   // the speed rises along a smooth step
+      return { e: vStart * s + (vFull - vStart) * easeTime * (x * x * x - x * x * x * x / 2), speed: (vStart + (vFull - vStart) * x * x * (3 - 2 * x)) / vFull };
+    }
+    return { e: Math.min(0.9, vStart * easeTime + (vFull - vStart) * easeTime / 2 + vFull * (s - easeTime)), speed: 1 };
+  }
+
+  // Where the rider and the camera are t seconds into the ride: { part, scene: 'ride' | 'forest', rider, cam, look, k,
+  // speed (on the ice: a share of full speed, for the hiss) }.
+  const total = RIDE.wood + iceTime + RIDE.blue;
   function rideAt(t) {
     if (t < RIDE.wood) {
-      const k = t / RIDE.wood, e = k * k * (3 - 2 * k) * 0.25 + k * 0.75;      // gathering speed
-      const c = woodCurve.getPointAt(Math.min(1, e)), a = woodCurve.getPointAt(Math.min(1, e + 0.03)), b = woodCurve.getPointAt(Math.max(0, e - 0.025));
+      const k = t / RIDE.wood, e = k;                                          // an even glide (W46)
+      const a = woodCurve.getPointAt(Math.min(1, e + 0.03)), b = woodCurve.getPointAt(Math.max(0, e - 0.025));
       riderLight.position.copy(a).add(new THREE.Vector3(0, 0.25, 0));
-      return { part: 'wood', scene: 'ride', rider: a.clone().add(new THREE.Vector3(0, -0.1, 0)), cam: b.clone().add(new THREE.Vector3(0, 0.12, 0)), look: woodCurve.getPointAt(Math.min(1, e + 0.07)), k };
+      const rider = a.clone().add(new THREE.Vector3(0, -0.1, 0));
+      // Aimed at you (a touch above, at your middle), a little towards the chute ahead: you stay in the middle (W46).
+      const look = rider.clone().add(new THREE.Vector3(0, 0.04, 0)).lerp(woodCurve.getPointAt(Math.min(1, e + 0.07)), WOOD_LEAD);
+      return { part: 'wood', scene: 'ride', rider, cam: b.clone().add(new THREE.Vector3(0, 0.12, 0)), look, k };
     }
-    if (t < RIDE.wood + RIDE.ice) {
-      const k = (t - RIDE.wood) / RIDE.ice, e = Math.min(0.9, k * 0.9);
+    if (t < RIDE.wood + iceTime) {
+      const s = t - RIDE.wood, k = s / iceTime, { e, speed } = iceAt(s);
       const a = iceCurve.getPointAt(e + 0.012), b = iceCurve.getPointAt(Math.max(0, e - 0.004));
-      return { part: 'ice', scene: 'forest', rider: a.clone().add(new THREE.Vector3(0, -0.12, 0)), cam: b.clone().add(new THREE.Vector3(0, 0.16, 0)), look: iceCurve.getPointAt(Math.min(1, e + 0.05)).add(new THREE.Vector3(0, 0.05, 0)), k };
+      return { part: 'ice', scene: 'forest', rider: a.clone().add(new THREE.Vector3(0, -0.12, 0)), cam: b.clone().add(new THREE.Vector3(0, 0.16, 0)), look: iceCurve.getPointAt(Math.min(1, e + 0.05)).add(new THREE.Vector3(0, 0.05, 0)), k, speed };
     }
-    const k = Math.min(1, (t - RIDE.wood - RIDE.ice) / RIDE.blue), e = 0.9 + k * 0.1;
+    const k = Math.min(1, (t - RIDE.wood - iceTime) / RIDE.blue), e = 0.9 + k * 0.1;
     const a = iceCurve.getPointAt(Math.min(1, e)), b = iceCurve.getPointAt(Math.max(0, e - 0.01));
     return { part: 'blue', scene: 'forest', rider: a.clone(), cam: b.clone().add(new THREE.Vector3(0, 0.25 - k * 0.2, 0)), look: blueAt.clone().lerp(a, 0.3 * (1 - k)), k };
   }
-  return { scene, woodCurve, iceCurve, iceGroup, blueAt, rideAt, total };
+  return { scene, woodCurve, iceCurve, iceGroup, blueAt, rideAt, total, times: { wood: RIDE.wood, ice: iceTime, blue: RIDE.blue }, speeds: { start: vStart, full: vFull } };
 }

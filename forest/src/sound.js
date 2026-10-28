@@ -11,7 +11,8 @@
 //   the fire    a soft crackle and low rumble from the library's fireplace, placed in space
 //   the tree    an occasional deep creak of the old tree, in the tunnel
 //   the arch    open, a faint shimmering tone as you near it, swelling as you pass under
-//   the ride    a wooden rattle-whoosh, then the hiss of ice, then a deep soft swell into the blue
+//   the ride    a wooden rattle-whoosh (at the calmer glide's pace since W46), then the hiss of ice, swelling as you
+//               speed up (W46), then a deep soft swell into the blue
 //   portals     a quiet chord as each going-through fade begins; a soft door sound going in and out
 //   the crow    a soft rustle of feathers when it hops along the railing (step 2b)
 // Browsers only allow sound after the person does something, so start() is called on the first key, click or tap.
@@ -119,7 +120,7 @@ export function createSound(params) {
     {
       const mk = (type, f, q) => { const src = ctx.createBufferSource(); src.buffer = noise; src.loop = true; const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; const g = ctx.createGain(); g.gain.value = 0; src.connect(fl); fl.connect(g); g.connect(master); src.start(0, Math.random() * 2); return { g, fl }; };
       const rattle = mk('bandpass', 700, 0.8), hiss = mk('highpass', 3800, 0.5), swellN = mk('lowpass', 200, 0.7);
-      const flutter = ctx.createOscillator(); flutter.frequency.value = 16; const fg = ctx.createGain(); fg.gain.value = 0;
+      const flutter = ctx.createOscillator(); flutter.frequency.value = 12; const fg = ctx.createGain(); fg.gain.value = 0;   // (16 before W46's calmer glide)
       flutter.connect(fg); fg.connect(rattle.g.gain); flutter.start();
       const deep = ctx.createOscillator(); deep.frequency.value = NOTE(38); const dg = ctx.createGain(); dg.gain.value = 0; deep.connect(dg); dg.connect(master); deep.start();
       rideNodes = { rattle, hiss, swellN, fg, dg };
@@ -211,12 +212,14 @@ export function createSound(params) {
     for (const [k, v] of [[0.01, 0.05], [0.05, 0.02], [0.08, 0.04], [0.14, 0.015], [0.22, 0]]) g.gain.linearRampToValueAtTime(v, t + k);
     src.connect(bp); bp.connect(g); g.connect(master); src.start(t, Math.random() * 2, 0.25);
   }
-  // The ride's parts (W24): 'wood', 'ice', 'blue', or null (quiet).
+  // The ride's parts (W24): 'wood', 'ice', 'blue', or null (quiet). On the ice the hiss swells from HISS.from to HISS.to
+  // as you ease up to full speed (W46; full speed is as loud as before).
+  const HISS = { from: 0.06, to: 0.14 };
   function ride(part) {
     if (!ctx) return;
     const t = ctx.currentTime, R = rideNodes;
-    R.rattle.g.gain.setTargetAtTime(part === 'wood' ? 0.22 : 0, t, 0.08); R.fg.gain.setTargetAtTime(part === 'wood' ? 0.12 : 0, t, 0.08);
-    R.hiss.g.gain.setTargetAtTime(part === 'ice' ? 0.14 : 0, t, 0.1);
+    R.rattle.g.gain.setTargetAtTime(part === 'wood' ? 0.19 : 0, t, 0.08); R.fg.gain.setTargetAtTime(part === 'wood' ? 0.1 : 0, t, 0.08);
+    R.hiss.g.gain.setTargetAtTime(part === 'ice' ? HISS.from : 0, t, 0.1);     // (it swells with the speed: update)
     R.swellN.g.gain.setTargetAtTime(part === 'blue' ? 0.4 : 0, t, part === 'blue' ? 0.5 : 0.2);
     R.dg.gain.setTargetAtTime(part === 'blue' ? 0.12 : 0, t, part === 'blue' ? 0.4 : 0.2);
     if (part === 'blue') R.swellN.fl.frequency.setTargetAtTime(900, t, 0.6); else R.swellN.fl.frequency.setTargetAtTime(200, t, 0.1);
@@ -284,6 +287,7 @@ export function createSound(params) {
       w.filt.frequency.setTargetAtTime(w.f * (0.8 + 0.4 * swell), t, 0.5);
     }
     archNodes.gain.gain.setTargetAtTime(place === 'forest' ? 0.12 * archNear * archNear * p.music * 2 : 0, t, 0.25);
+    if (r && r.part === 'ice' && typeof r.speed === 'number') rideNodes.hiss.g.gain.setTargetAtTime(HISS.from + (HISS.to - HISS.from) * Math.min(1, Math.max(0, r.speed)), t, 0.12);
     if (place === 'library' && t >= nextPop) {
       // The fire's pops.
       fireNodes.pop.gain.setValueAtTime(0.25 + Math.random() * 0.5, t); fireNodes.pop.gain.setTargetAtTime(0.02, t + 0.01, 0.02);
