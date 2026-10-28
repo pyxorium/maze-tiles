@@ -7,7 +7,8 @@
 // Then the map card, the gear menu (back to the start, the map kept), step and turn (routes planned with the
 // maze's own rules: the loop, the stairs down, the fall), the keyboard, "reduce motion", and a phone: the thumb
 // joystick, dragging to turn, the arrow buttons. Then ways with a stand-in host (dev/host.html): hello, the obelisk
-// open, dormant or no host, arriving at the obelisk, way.leave. WebGL runs in software here (SwiftShader), about 8 frames a second.
+// open, dormant or no host, arriving at the obelisk, way.leave. Then M27: up each flight of the Penrose loop pressed into
+// the right wall, the view follows you over the top. WebGL runs in software here (SwiftShader), about 8 frames a second.
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
@@ -447,6 +448,30 @@ try {
   await hosts.open.hp.waitForTimeout(2000);
   await shot(hosts.open.hp, '14-host-open-glow');
   for (const m of Object.keys(hosts)) ok(hosts[m].hp.errors.length === 0, `no errors with a host (${m})${hosts[m].hp.errors.length ? `: ${hosts[m].hp.errors.join(' | ')}` : ''}`);
+
+  // ---- M27 (claude/escher-maze-view-bug.md): up each flight of the Penrose loop pressed into the right wall, facing
+  // almost along it; at the top the camera used to pass the opening's plane beside the opening and the view never
+  // switched (the new room's name, the figure on blank background or in a wall). Now the view follows the figure,
+  // by the camera itself (the safety net isn't needed). Started at the top step: in software graphics the frames
+  // are long and a figure stops short of walls lower down.
+  {
+    const page = await open({ viewport: { width: 800, height: 600 } });
+    for (const room of ['landing1', 'landing2', 'landing3', 'landing4']) {
+      for (const deg of [80, 85]) {
+        await jump(page, room, [5.77, 0.35], deg * Math.PI / 180);
+        await page.waitForTimeout(1500);
+        await page.locator('#stage canvas').click({ position: { x: 5, y: 300 } });
+        await page.keyboard.down('ArrowUp');
+        let s = null, left = false;
+        for (let i = 0; i < 30; i++) { s = await st(page); if (s.room !== room) left = true; if (left && s.view === s.room && s.chain === 0) break; await page.waitForTimeout(150); }
+        await page.keyboard.up('ArrowUp');
+        ok(left && s.view === s.room && s.chain === 0, `${MAP.rooms[room].name}, up the flight at ${deg}° against the right wall: the view follows you into ${MAP.rooms[s.room].name} (${s.view})`);
+      }
+    }
+    await shot(page, '15-m27-after-the-top');
+    ok((await st(page)).recovered === 0, 'the camera got there itself: the safety net was never needed');
+    ok(page.errors.length === 0, `no errors (M27)${page.errors.length ? `: ${page.errors.join(' | ')}` : ''}`);
+  }
 } catch (err) {
   console.log(`FAIL the check stopped: ${err.message}`);
   failures++;

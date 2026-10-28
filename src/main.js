@@ -60,6 +60,10 @@ const fig = { room: MAP.start.room, cell: [...MAP.start.at], h: 0, facing: MAP.s
 fig.local = [fig.cell[0] + 0.5, fig.cell[1] + 0.5, 0];
 let view = fig.room;                 // the camera's room: everything is drawn in its coordinates
 let chain = [];                      // the openings the figure has gone through since the camera's room
+// M27 (Oct 28 2026; claude/escher-maze-view-bug.md): how long the figure has been in another room than the camera's,
+// and how many times the safety net below has had to put the camera back with the figure (for the browser check).
+let strayFor = 0, recovered = 0;
+export const STRAY_LIMIT = 0.8;      // seconds
 let busy = false, queued = null, fading = false, falling = null;
 let fadeAlpha = 0;
 const held = { forward: false, back: false, left: false, right: false };
@@ -385,6 +389,13 @@ function corridorGate() {
 }
 
 function updateCamera(dt) {
+  // M27's safety net: the maze is drawn from the camera's room, so the figure must never stay in another room for
+  // long. Normally the camera follows it through the opening within a moment; if not, put it back with the figure
+  // (a quiet cut).
+  if (chain.length && view !== fig.room && !falling && !fading) {
+    strayFor += dt;
+    if (strayFor > STRAY_LIMIT) { view = fig.room; fig.place = IDENTITY; chain = []; cam.ready = false; strayFor = 0; recovered++; }
+  } else strayFor = 0;
   const v = view3.room(view);
   const [fx, fy, fz] = figWorld();
   const yaw = figYawWorld();
@@ -439,7 +450,10 @@ function updateCamera(dt) {
     const g = cg.g, m = v.masks.get(g.way.id);
     const sPrev = tmp.copy(cam.prev).sub(m.point).dot(m.normal), sNow = tmp.copy(cam.pos).sub(m.point).dot(m.normal);
     const u = g.side === 'ne' || g.side === 'sw' ? cam.pos.x : cam.pos.z;
-    if (sPrev <= 0 && sNow > 0 && u > g.way.at - 0.3 && u < g.way.at + 1.3) switchView();
+    // Through the opening: switch. M27: past the opening's plane anywhere else (facing almost along the wall, the
+    // camera can pass it beside the opening, through the wall's corner): switch too, or the old room would go on
+    // being drawn round a figure that has left it.
+    if (sNow > 0 && ((sPrev <= 0 && u > g.way.at - 0.3 && u < g.way.at + 1.3) || sNow > 0.02)) switchView();
   }
   finishCamera(fx, fy, fz);
 }
@@ -547,7 +561,7 @@ function restart() {
 // For the browser check and the card pictures (test/browser/check.mjs, dev/card-art.html) only; nothing on the page
 // calls these.
 window.__maze = {
-  state: () => ({ room: fig.room, view, chain: chain.length, cell: [...fig.cell], h: fig.h, local: [...fig.local], yaw: fig.yaw, facing: fig.facing, busy, fading, falling: falling && falling.phase, movement: params.movement, reduceMotion, visited: [...nav.state.visited], fell: nav.state.fell, drawn: lastDrawn, camera: fromV3(cam.pos), ways: ways.mode, obelisk: ways.state('obelisk'), tip: WAYSTONE_TIPS.map((t) => t.material.color.getHexString()) }),
+  state: () => ({ room: fig.room, view, chain: chain.length, cell: [...fig.cell], h: fig.h, local: [...fig.local], yaw: fig.yaw, facing: fig.facing, busy, fading, falling: falling && falling.phase, movement: params.movement, reduceMotion, visited: [...nav.state.visited], fell: nav.state.fell, drawn: lastDrawn, camera: fromV3(cam.pos), ways: ways.mode, obelisk: ways.state('obelisk'), tip: WAYSTONE_TIPS.map((t) => t.material.color.getHexString()), recovered }),
   jump(roomId, at, facingOrYaw) {
     const yaw = typeof facingOrYaw === 'number' ? facingOrYaw : yawOf(facingOrYaw || 'ne');
     const h = heightsCache.get(roomId).get(`${Math.floor(at[0])},${Math.floor(at[1])}`) ?? 0;

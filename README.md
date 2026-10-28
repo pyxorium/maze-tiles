@@ -29,6 +29,15 @@ in a new tab, the travel page, which takes you where it leads. See "Ways" below.
 start** (the map is kept) and **Reduce motion** (taken from the device's own setting): the fall and the
 swoop through doorways become quick fades. Nothing is saved: a reload starts again in the Courtyard.
 
+## Versions
+
+- **0.3.0** (Oct 26 2026): the 3D maze with ways (the obelisk). Published as `…/ing.dasl.masl/3mys6stpsyc2b`.
+- **0.3.1** (Oct 28 2026, M27, claude/escher-maze-view-bug.md): climbing a flight pressed into a wall, facing almost
+  along it, the camera could pass the opening's line beside the opening and the view never followed you into the
+  next room (its name showing, you on blank background or in a wall). Now the view follows wherever the camera
+  crosses, and a safety net puts the camera back with you if the two are ever in different rooms for more than
+  0.8 s. Nothing else changed.
+
 ## The folders
 
 - `src\` the maze's code: `map.js` (the rooms), `graph.js` (the map's rules), `walk.js` (walking, gates, the

@@ -1,6 +1,6 @@
 {
   "name": "maze-tiles",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "The Escher maze: an impossible, wander-around world inside one web tile, seen over the shoulder (a proof of concept for thunderbird.cafe)",
   "private": true,
   "license": "UNLICENSED",
