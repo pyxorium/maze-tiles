@@ -5,9 +5,9 @@
 //
 // Four paths wind out of the clearing for about 30 blocks (W9) and each ends at its portal:
 //   wardrobe   roughly north: the last 8 blocks are the coats lane (W10), ending at the wardrobe's doors
-//   tree-door  roughly east: the giant old tree with a tunnel carved into it (W11; its inside is step 2)
+//   tree-door  roughly east: the giant old tree with a tunnel carved into it (W11; its inside: inside.js, tunnel.js)
 //   arch       roughly south: a small glade and the stone arch (W12)
-//   slide      roughly west: the library (W13; its inside, the bench and the slide are step 2)
+//   slide      roughly west: the library (W13; its inside, the bench and the slide: inside.js, library.js, ride.js)
 // Each portal has a frame: its origin O (where the path ends), d (onwards, away from the clearing) and r (to the
 // right of d). A point's (u, v) in that frame: u along d (negative: on the clearing's side), v to the right.
 
@@ -30,8 +30,12 @@ export function rng(seed) {
 
 // The four paths (W2), each leaving the clearing roughly towards one compass point and winding as it goes. The
 // last stretch straightens (so each portal stands square to its path).
+// The wardrobe's path (W32) is drawn through points instead: out north about 20 blocks, one bend, then a long gently
+// winding run east to the wardrobe, about 45 blocks in all; coming round the bend (about halfway) you first see down
+// the run to the doors, and from the clearing you never can (tests check both).
+export const WARDROBE_ROUTE = [[0.2, -5.5], [-0.5, -10.5], [0.5, -15.5], [1.3, -19.5], [3.6, -22.2], [7.5, -23.4], [12, -23.0], [16.5, -23.7], [21, -23.3], [25, -23.5]];
 export const PATHS = [
-  { id: 'wardrobe', angle: -Math.PI / 2 + 0.25, bend: 1.0 },
+  { id: 'wardrobe', route: WARDROBE_ROUTE },
   { id: 'tree-door', angle: 0.15, bend: -1.2 },
   { id: 'arch', angle: Math.PI / 2 - 0.2, bend: 0.9 },
   { id: 'slide', angle: Math.PI + 0.1, bend: -0.8 },
@@ -41,7 +45,11 @@ function angleAt(p, r) {
   const t = Math.max(0, Math.min(STRAIGHT, (r - CLEARING) / (PATH_END - CLEARING)));
   return p.angle + t * p.bend * 0.55 + Math.sin(t * Math.PI * 1.6) * 0.16 * p.bend;
 }
+// A path's centre line as points about `step` apart. from and to are distances from the lamp post for the paths that
+// wind out by angle; for the wardrobe's (drawn through points), `from` below the clearing's edge starts it at the
+// lamp post, and `to` beyond PATH_END carries it on past the doors by the difference.
 export function pathPoints(p, { from = CLEARING - 1.5, to = PATH_END, step = 0.5 } = {}) {
+  if (p.route) return routePoints(p.route, { from, extra: Math.max(0, to - PATH_END), step });
   const pts = [];
   for (let r = from; r <= to + 1e-9; r += step) {
     const a = angleAt(p, r);
@@ -50,6 +58,57 @@ export function pathPoints(p, { from = CLEARING - 1.5, to = PATH_END, step = 0.5
   return pts;
 }
 export const pathOf = (id) => PATHS.find((p) => p.id === id);
+
+// A smooth curve through the route's points (Catmull-Rom), evened out to `step` apart.
+function routePoints(route, { from, extra, step }) {
+  const ctl = [...route];
+  if (from < Math.hypot(...route[0]) - 0.25) {
+    const [x, z] = route[0], r = Math.hypot(x, z), k = Math.max(0, from) / r;
+    ctl.unshift([x * k, z * k]);
+  }
+  const dense = [];
+  const P = [ctl[0], ...ctl, ctl[ctl.length - 1]];
+  for (let i = 1; i < P.length - 2; i++) {
+    const [p0, p1, p2, p3] = [P[i - 1], P[i], P[i + 1], P[i + 2]];
+    for (let t = 0; t < 1; t += 0.05) {
+      const t2 = t * t, t3 = t2 * t;
+      dense.push([0, 1].map((j) => 0.5 * ((2 * p1[j]) + (-p0[j] + p2[j]) * t + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t2 + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * t3)));
+    }
+  }
+  dense.push(ctl[ctl.length - 1]);
+  // Even it out.
+  const out = [dense[0]];
+  let carry = 0;
+  for (let i = 1; i < dense.length; i++) {
+    let [ax, az] = dense[i - 1]; const [bx, bz] = dense[i];
+    let seg = Math.hypot(bx - ax, bz - az);
+    while (carry + seg >= step) {
+      const k = (step - carry) / seg;
+      ax += (bx - ax) * k; az += (bz - az) * k; seg = Math.hypot(bx - ax, bz - az);
+      out.push([ax, az]); carry = 0;
+    }
+    carry += seg;
+  }
+  const last = ctl[ctl.length - 1];
+  if (Math.hypot(out.at(-1)[0] - last[0], out.at(-1)[1] - last[1]) > 0.05) out.push(last);
+  if (extra > 0) {
+    const [ax, az] = out.at(-2), [bx, bz] = out.at(-1), l = Math.hypot(bx - ax, bz - az);
+    for (let d = step; d <= extra + 1e-9; d += step) out.push([bx + (bx - ax) / l * d, bz + (bz - az) / l * d]);
+  }
+  return out;
+}
+
+// Does a sight line from a to b (on the ground plan) pass through a spruce's branches? (Its tiers reach about
+// 1.4 × its scale out at eye height.)
+export const SIGHT_RADIUS = 1.4;
+export function sightBlocked(a, b, trees, k = SIGHT_RADIUS) {
+  const dx = b[0] - a[0], dz = b[1] - a[1], L2 = dx * dx + dz * dz;
+  for (const t of trees) {
+    const u = Math.max(0, Math.min(1, ((t.x - a[0]) * dx + (t.z - a[1]) * dz) / L2));
+    if (Math.hypot(t.x - (a[0] + dx * u), t.z - (a[1] + dz * u)) < k * t.s) return true;
+  }
+  return false;
+}
 
 // The shortest distance from (x, z) to any path (and which), for keeping trees off the paths.
 export function nearestPath(x, z, paths) {
@@ -121,7 +180,10 @@ export function flatness(x, z) {
 export function groundHeight(x, z, bumps) {
   const r = Math.hypot(x, z);
   const n = Math.sin(x * 0.35) * Math.cos(z * 0.29) + Math.sin(x * 0.11 + z * 0.17) * 1.6;
-  return n * bumps * Math.min(1, Math.max(0, (r - CLEARING + 1) / 6)) * flatness(x, z);
+  // The hollow where the ice run ends (W15), a soft dip in the snow.
+  const dh = Math.hypot(x - ICE_RUN_END[0], z - ICE_RUN_END[1]);
+  const dip = dh < 2.6 ? 1.1 * (1 - smooth(0.6, 2.6, dh)) : 0;
+  return n * bumps * Math.min(1, Math.max(0, (r - CLEARING + 1) / 6)) * flatness(x, z) - dip;
 }
 
 // ---- the coats lane (W10) ------------------------------------------------------------------------------------------
@@ -161,6 +223,30 @@ export function laneTrees() {
   return out;
 }
 
+// The screen: rows of spruces between the clearing and the wardrobe, across the line from the lamp post to its doors.
+export function screenTrees() {
+  const [dx, dz] = FRAMES.wardrobe.o, len = Math.hypot(dx, dz), d = [dx / len, dz / len], n = [-d[1], d[0]];
+  const out = [];
+  let i = 0;
+  for (const [at, gap, half, shift] of [[12.5, 2.3, 9, 0], [16, 2.3, 9, 1.15]]) {
+    for (let w = -half + shift; w <= half; w += gap, i++) {
+      out.push({ x: d[0] * at + n[0] * w, z: d[1] * at + n[1] * w, s: 0.9 + (i % 4) * 0.05, r: i * 2.3 });
+    }
+  }
+  return out;
+}
+
+// ---- the ice run (W15): the slide's second part, out through the forest behind and beside the library ----------------
+// In the slide portal's frame (u onwards into the library, v to its right): it bursts out of a snowbank behind the back
+// wall, curves round to the right and runs back alongside the library among the trees, then dives into a hollow
+// glowing blue (the hand-off to the maze). Spruces keep clear of it.
+export const ICE_RUN = [[15.8, -1.0], [18.2, 1.5], [19.0, 5.5], [17.4, 9.6], [13.6, 12.6], [8.6, 14.2], [3.8, 14.8], [0.6, 15.4]];
+export function iceRunPoints(step = 0.5) {
+  const f = FRAMES.slide;
+  return routePoints(ICE_RUN.map(([u, v]) => world(f, u, v)), { from: Infinity, extra: 0, step });
+}
+export const ICE_RUN_END = (() => { const [u, v] = ICE_RUN[ICE_RUN.length - 1]; return world(FRAMES.slide, u, v); })();
+
 // ---- the spruces -------------------------------------------------------------------------------------------------
 // The lane's own spruces, then count more outside the clearing, off the paths and the portals' ground, at least
 // `spacing` apart (scaled by size). Each: { x, z, s (scale), r (yaw) }.
@@ -168,6 +254,13 @@ export function plantTrees({ seed = 7, count = 260, spacing = 2.6, size = 1, pat
   const rand = rng(seed);
   const paths = PATHS.map((p) => ({ id: p.id, pts: pathPoints(p, { to: p.id === 'wardrobe' ? PATH_END + 3 : PATH_END + 6 }) }));
   const trees = laneTrees();
+  const run = iceRunPoints(1);
+  // A screen of spruces across every sight line from the clearing to the wardrobe (W32), off the paths.
+  for (const t of screenTrees()) {
+    if (nearestPath(t.x, t.z, paths).d < pathWidth / 2 + 2.0 * t.s) continue;
+    if (Math.hypot(t.x, t.z) < CLEARING + 1.9 * t.s) continue;
+    trees.push(t);
+  }
   const lane = trees.length;
   let tries = 0;
   while (trees.length < count + lane && tries < count * 60) {
@@ -180,6 +273,7 @@ export function plantTrees({ seed = 7, count = 260, spacing = 2.6, size = 1, pat
     if (nearestPath(x, z, paths).d < pathWidth / 2 + 2.0 * s) continue;
     if (CLEAR.some((c) => Math.hypot(x - c.at[0], z - c.at[1]) < c.r + 1.2 * s)) continue;
     if (GLADES.some((g) => Math.hypot(x - g.at[0], z - g.at[1]) < g.r + 2.0 * s)) continue;
+    if (nearestPath(x, z, [{ pts: run }]).d < 1.1 + 1.5 * s || Math.hypot(x - ICE_RUN_END[0], z - ICE_RUN_END[1]) < 2.4 + 1.5 * s) continue;
     if (trees.some((t) => Math.hypot(t.x - x, t.z - z) < spacing * (t.s + s) / 2)) continue;
     trees.push({ x, z, s, r: rand() * Math.PI * 2 });
   }
@@ -201,7 +295,7 @@ export function canStand(x, z, { trees, paths, pathWidth = 1.8 }) {
   {
     const [u, v] = local(FRAMES.wardrobe, x, z);
     if (u > -0.3 && u < 3 && Math.abs(v) < 3) return false;                          // the doors
-    if (u > -WARDROBE.depth - 0.1 && u <= -0.3 && Math.abs(v) > WARDROBE.inner) return false;   // inside its sides
+    if (u > -WARDROBE.depth - 0.1 && u <= -0.3 && Math.abs(v) > WARDROBE.inner && Math.abs(v) < WARDROBE.half + 0.6) return false;   // its sides
   }
   {
     const [u, v] = local(FRAMES.arch, x, z);
@@ -215,7 +309,7 @@ export function canStand(x, z, { trees, paths, pathWidth = 1.8 }) {
   if (r <= CLEARING) return true;
   if (GLADES.some((g) => Math.hypot(x - g.at[0], z - g.at[1]) <= g.r)) return true;
   const near = nearestPath(x, z, paths);
-  return near.d <= pathWidth / 2 + 0.25 && r <= PATH_END + 0.6;
+  return near.d <= pathWidth / 2 + 0.25;              // (each path ends at its portal, which stops you)
 }
 
 // One step of free walking: try the move, then each axis alone (sliding along trees and edges).
@@ -226,12 +320,12 @@ export function walk(pos, move, world) {
 }
 
 // ---- where travellers arrive (W19) and what touches each portal ----------------------------------------------------
-// Each entrance: a spot and a yaw (facing back towards the clearing, as if just stepped out of the portal).
+// Each forest entrance: a spot and a yaw (facing back towards the clearing, as if just stepped out of the portal).
+// The tree-door's is inside the great tree's tunnel, just through the door (inside.js TUNNEL_ARRIVE, W31).
 function backFrom(id, u) { const f = FRAMES[id], [x, z] = world(f, u, 0); return { x, z, yaw: yawFacing(-f.d[0], -f.d[1]) }; }
 export const ENTRANCES = {
   lamppost: { x: 0, z: 3.2, yaw: 0 },                 // just south of the lamp post, facing it
   wardrobe: backFrom('wardrobe', -2.2),               // a step in from the doors, the coats lane ahead (room for the camera)
-  'tree-door': backFrom('tree-door', -0.4),           // step 1: at the tunnel's mouth (step 2: inside, through the door)
   arch: backFrom('arch', -0.9),                        // just out from under the arch, in its glade
 };
 

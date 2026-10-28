@@ -108,7 +108,7 @@ const world = () => {
   return { trees, paths, pathWidth: LOOK.pathWidth };
 };
 
-test('entrances: each is a place you can stand, facing back towards the clearing, not already in a portal (W19)', () => {
+test('entrances: the forest\'s three are places you can stand, facing back towards the clearing, not in a portal (W19)', () => {
   const w = world();
   for (const [id, e] of Object.entries(L.ENTRANCES)) {
     assert.ok(L.canStand(e.x, e.z, w), `${id}: can stand there`);
@@ -120,15 +120,18 @@ test('entrances: each is a place you can stand, facing back towards the clearing
   assert.ok(L.ENTRANCES.lamppost.z > 0 && L.ENTRANCES.lamppost.yaw === 0, 'lamppost: just south of the lamp post, facing it');
 });
 
-test('paths: each winds about 30 blocks, and you can walk it from the lamp post to its portal (W9)', () => {
+test('paths: each winds about 30 blocks (the wardrobe\'s about 45), and you can walk it from the lamp post to its portal (W9, W32)', () => {
   const w = world();
   const want = { wardrobe: 'portal', arch: 'portal', 'tree-door': 'mouth', slide: 'door' };
   for (const p of L.PATHS) {
     const len = L.arcLengths(L.pathPoints(p, { from: 0 })).at(-1);      // from the lamp post
-    assert.ok(len > 29 && len < 36, `${p.id}: ${len.toFixed(1)} blocks from the lamp post`);
-    let pos = [L.ENTRANCES.lamppost.x, L.ENTRANCES.lamppost.z];
+    const [lo, hi] = p.id === 'wardrobe' ? [41, 49] : [29, 36];         // W9; the wardrobe's about 45 (W32)
+    assert.ok(len > lo && len < hi, `${p.id}: ${len.toFixed(1)} blocks from the lamp post`);
     let reached = null;
     const pts = L.pathPoints(p, { from: 0.8, to: L.PATH_END, step: 0.5 });
+    // Start beside the lamp post on this path's side (a player steps round the post; this walker doesn't).
+    const r0 = Math.hypot(...pts[0]);
+    let pos = [pts[0][0] / r0 * 1.2, pts[0][1] / r0 * 1.2];
     for (const [tx, tz] of [...pts, ...Array(12).fill(pts.at(-1)).map(() => { const f = L.FRAMES[p.id]; return L.world(f, 3, 0); })]) {
       for (let i = 0; i < 40 && !reached; i++) {
         const dx = tx - pos[0], dz = tz - pos[1], d = Math.hypot(dx, dz);
@@ -153,4 +156,26 @@ test('the coats lane: boughs first, coats nearer the doors, on both sides (W10)'
   assert.ok(Math.min(...spots.map((s) => s.t)) < 0.05 && Math.max(...spots.map((s) => s.t)) > 0.9);
   const f = L.FRAMES.wardrobe;
   for (const s of spots) assert.ok(L.local(f, s.x, s.z)[0] > -L.LANE - 0.5, 'within the lane\'s last 8 blocks');
+});
+
+test('the wardrobe is hidden from the clearing, and first seen about halfway along its path (W32)', () => {
+  const { trees } = world();
+  const door = L.world(L.FRAMES.wardrobe, -0.2, 0);
+  for (let r = 0; r <= L.CLEARING; r += 0.5) {
+    for (let a = 0; a < Math.PI * 2; a += 0.1) {
+      const at = [Math.cos(a) * r, Math.sin(a) * r];
+      assert.ok(L.sightBlocked(at, door, trees), `seen from the clearing at ${at.map((n) => n.toFixed(1))}`);
+    }
+  }
+  const pts = L.pathPoints(L.pathOf('wardrobe'), { from: 0 }), s = L.arcLengths(pts), total = s.at(-1);
+  const first = pts.findIndex((p) => !L.sightBlocked(p, door, trees));
+  assert.ok(first > 0, 'seen somewhere along the path');
+  const share = s[first] / total;
+  assert.ok(share > 0.35 && share < 0.6, `first seen ${(share * 100).toFixed(0)}% of the way along`);
+  // The new stretch keeps well away from the tree-door's path and the great tree.
+  const tree = L.pathPoints(L.pathOf('tree-door'));
+  for (const [x, z] of pts.filter(([x, z]) => Math.hypot(x, z) > L.CLEARING + 3)) {
+    assert.ok(Math.min(...tree.map(([a, b]) => Math.hypot(a - x, b - z))) > 6, 'away from the tree-door\'s path');
+    assert.ok(Math.hypot(x - L.TRUNK_CENTRE[0], z - L.TRUNK_CENTRE[1]) > 12, 'away from the great tree');
+  }
 });

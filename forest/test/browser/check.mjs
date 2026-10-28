@@ -1,12 +1,14 @@
-// A browser check of Winter Forest, step 1 (Playwright with Chromium; run in the build chat's sandbox, or anywhere
+// A browser check of Winter Forest, steps 1 and 2 (Playwright with Chromium; run in the build chat's sandbox, or anywhere
 // Playwright is installed): node forest/test/browser/check.mjs [folder for screenshots]
 // It serves the tile as forest/dev/serve.mjs does (with the tile's security policy) and tries it:
 //   - on its own (no host): the postcard and its line, nothing else (W16, W23)
 //   - with the stand-in host (forest/dev/host.html): hello naming the forest's ways, the status, arriving at each of
-//     the four entrances (W19) and standing where they say, facing back towards the clearing
+//     the four entrances (W19) and standing where they say (the tree-door's inside the tunnel, facing the mouth: W31)
 //   - walking (holding ↑, as a player) up the wardrobe's lane into the doors: dormant, the note; open, the doors swing,
-//     white, way.leave with exit "wardrobe" and a facing; the arch the same (the ripple, pale blue); the great tree's
-//     mouth and the library's door (step 2: a note)
+//     white, way.leave with exit "wardrobe" and a facing; the arch the same (the ripple, pale blue)
+//   - in through the great tree's mouth to its door (dormant: the note; open: it opens onto amber, way.leave
+//     "tree-door"), and out again; in by the library's door, onto the bench, into the little door (dormant: the note;
+//     open: the shrink, the ride's wood, ice and blue, way.leave "slide"; nobody takes you on: the lamp post)
 //   - a way that's blocked (no host takes you on): back at the portal, "The way is blocked."
 //   - coming back through the same portal (the host's round trip), "reduce motion", a phone-sized window
 // WebGL runs in software here (SwiftShader), a few frames a second, so it waits generously.
@@ -15,6 +17,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { startDev } from '../../dev/serve.mjs';
 import * as L from '../../src/layout.js';
+import * as I from '../../src/inside.js';
 
 const require = createRequire(import.meta.url);
 let playwright;
@@ -54,7 +57,7 @@ const until = async (page, fn, arg, ms = 30000) => { const t0 = Date.now(); whil
 const near = (s, e, d = 0.15) => Math.hypot(s.x - e.x, s.z - e.z) < d;
 const arrive = (page, id) => page.evaluate((id) => window.__host.arrive(id), id);
 // Put the figure somewhere (the hook), then walk forwards by holding ↑ until fn says stop.
-const jump = (page, x, z, yaw) => page.forest().evaluate(([x, z, yaw]) => window.__forest.jump(x, z, yaw), [x, z, yaw]);
+const jump = (page, x, z, yaw, where = 'forest') => page.forest().evaluate(([x, z, yaw, w]) => window.__forest.jump(x, z, yaw, w), [x, z, yaw, where]);
 async function holdUp(page, stop, ms = 15000) {
   await page.locator('#forest').click({ position: { x: 600, y: 240 } });
   await page.forest().evaluate(() => { window.__forest.held.forward = true; });
@@ -96,7 +99,8 @@ const towards = (id, u, v = 0) => { const f = L.FRAMES[id]; const [x, z] = L.wor
     await arrive(page, id);
     const arrived = await until(page, async (p) => (await st(p)).phase === 'walking', null, 20000);
     const s2 = await st(page);
-    ok(arrived && near(s2, L.ENTRANCES[id]) && Math.abs(s2.yaw - L.ENTRANCES[id].yaw) < 0.01, `arrive at "${id}": standing at its spot, facing the clearing (${s2.area})`);
+    const spot = id === 'tree-door' ? I.TUNNEL_ARRIVE : L.ENTRANCES[id], where = id === 'tree-door' ? 'tunnel' : 'forest';
+    ok(arrived && s2.place === where && near(s2, spot) && Math.abs(s2.yaw - spot.yaw) < 0.01, `arrive at "${id}": standing at its spot, facing ${id === 'tree-door' ? 'the mouth' : 'the clearing'} (${s2.area})`);
     await page.waitForTimeout(800);
     if (id === 'wardrobe') {
       const c = (await st(page)).cam, u = L.local(L.FRAMES.wardrobe, c[0], c[1])[0];
@@ -111,7 +115,7 @@ const towards = (id, u, v = 0) => { const f = L.FRAMES[id]; const [x, z] = L.wor
 
 // ---- 4. The wardrobe and the arch, dormant: walking into them says so -----------------------------------------------------
 {
-  const page = await hosted('open=slide&roundtrip=0');
+  const page = await hosted('open=none&roundtrip=0');
   await arrive(page, 'lamppost');
   await until(page, async (p) => (await st(p)).phase === 'walking');
   for (const id of ['wardrobe', 'arch']) {
@@ -127,15 +131,34 @@ const towards = (id, u, v = 0) => { const f = L.FRAMES[id]; const [x, z] = L.wor
   }
   const s = await st(page);
   ok(s.wardrobeGlow === 0 && s.archOpen === 0, 'dormant looks: no light between the doors, the arch only shimmers');
-  // The great tree's mouth and the library's door: built in step 2.
-  for (const [id, text] of [['tree-door', 'The way into the great tree is still being built.'], ['slide', 'The library is still being built.']]) {
-    const a = towards(id, -2.0);
-    await jump(page, a.x, a.z, a.yaw);
-    await page.waitForTimeout(400);
-    let said = '';
-    await holdUp(page, async (p) => (said = await noteText(p)) !== '', 15000);
-    ok(said === text, `${id}: "${text}" (step 2)`);
-  }
+  // The great tree: in through its mouth (a fade), along the tunnel to the barred door (W11, W18, W33).
+  const m = towards('tree-door', L.TRUNK.at - L.TRUNK.radius - 2.4);
+  await jump(page, m.x, m.z, m.yaw);
+  await page.waitForTimeout(400);
+  await holdUp(page, async (p) => (await st(p)).place === 'tunnel' && (await st(p)).phase === 'walking', 15000);
+  ok((await st(page)).place === 'tunnel' && (await st(page)).area === 'inside the great tree', 'walking into the great tree\'s mouth: inside the tunnel');
+  await shot(page, '03-tunnel-in');
+  let said = '';
+  await holdUp(page, async (p) => (said = await noteText(p)) !== '', 20000);
+  ok(said === "This doesn't lead anywhere yet." && (await st(page)).phase === 'walking', `tree-door, dormant (barred): "${said}"`);
+  await shot(page, '03-dormant-tree-door');
+  // Out again: turn round and walk to the mouth.
+  { const s = await st(page); await jump(page, s.x, s.z, s.yaw + Math.PI, 'tunnel'); }
+  await holdUp(page, async (p) => (await st(p)).place === 'forest' && (await st(p)).phase === 'walking', 20000);
+  ok((await st(page)).place === 'forest' && near(await st(page), I.TUNNEL_OUT, 0.3), 'out of the mouth again, in front of the great tree');
+  // The library: in by its door, onto the bench, into the little door (W14, W33).
+  const d = towards('slide', -2.0);
+  await jump(page, d.x, d.z, d.yaw);
+  await page.waitForTimeout(400);
+  await holdUp(page, async (p) => (await st(p)).place === 'library' && (await st(p)).phase === 'walking', 15000);
+  ok((await st(page)).place === 'library', 'walking into the library\'s door: inside');
+  await shot(page, '03-library-in');
+  const b = L.world(L.FRAMES.slide, 1.9, 3.4), bt = L.world(L.FRAMES.slide, 1.9, 6);
+  await jump(page, b[0], b[1], Math.atan2(-(bt[0] - b[0]), -(bt[1] - b[1])), 'library');
+  said = '';
+  await holdUp(page, async (p) => (said = await noteText(p)) !== '', 15000);
+  ok(said === "This doesn't lead anywhere yet." && (await st(page)).y > 0.4, `slide, dormant: up on the bench, "${said}" at the little door`);
+  await shot(page, '03-dormant-little-door');
   ok((await hostLog(page)).every((m) => m.kind !== 'leave'), 'nothing dormant sends way.leave');
   ok(page.errors.length === 0, `no errors ${page.errors.join(' | ')}`);
   await page.close();          // software WebGL: one page at a time, or the next one stalls
@@ -180,6 +203,33 @@ const towards = (id, u, v = 0) => { const f = L.FRAMES[id]; const [x, z] = L.wor
   await arrive(page, 'arch');
   await until(page, async (p) => (await st(p)).phase === 'walking', null, 20000);
   ok(near(await st(page), L.ENTRANCES.arch), 'coming back through the arch: out from under it, in its glade');
+  // The tree-door: in the tunnel, walk into it; it opens onto amber; way.leave "tree-door" (W18, W31).
+  await jump(page, I.TUNNEL_IN.x, I.TUNNEL_IN.z, I.TUNNEL_IN.yaw, 'tunnel');
+  await holdUp(page, async (p) => (await st(p)).phase !== 'walking', 20000);
+  ok((await st(page)).anim === 'through-tree-door', 'tree-door, open: walking into it starts going through');
+  await page.waitForTimeout(700);
+  await shot(page, '07-tree-door-through');
+  await until(page, async (p) => (await hostLog(p)).some((m) => m.kind === 'leave' && m.exit === 'tree-door'), null, 20000);
+  ok((await hostLog(page)).some((m) => m.kind === 'leave' && m.exit === 'tree-door'), 'way.leave with exit "tree-door"');
+  // Coming back through the tree-door: in the tunnel, the door closing behind you (W31).
+  await arrive(page, 'tree-door');
+  await until(page, async (p) => (await st(p)).phase === 'walking', null, 20000);
+  ok((await st(page)).place === 'tunnel' && near(await st(page), I.TUNNEL_ARRIVE), 'coming back through the tree-door: in the tunnel, facing the mouth');
+  await shot(page, '07-tree-door-back');
+  // The slide: on the bench, into the little door; the shrink; the ride (wood, ice, blue); way.leave "slide" (W14, W15).
+  const b = L.world(L.FRAMES.slide, 1.9, 4.38), bt = L.world(L.FRAMES.slide, 1.9, 6);
+  await jump(page, b[0], b[1], Math.atan2(-(bt[0] - b[0]), -(bt[1] - b[1])), 'library');
+  await page.waitForTimeout(600);
+  await holdUp(page, async (p) => (await st(p)).phase !== 'walking', 15000);
+  ok((await st(page)).anim === 'shrink', 'slide, open: walking into the little door from the bench starts the shrink');
+  await until(page, async (p) => (await st(p)).size < 0.3, null, 20000);
+  ok((await st(page)).size < 0.3, 'you shrink to the little door\'s size');
+  const parts = new Set();
+  await until(page, async (p) => { const s = await st(p); if (s.part) parts.add(s.part); if (s.part === 'ice' && !parts.shot) { parts.shot = true; await shot(p, '08-ride-ice'); } return (await hostLog(p)).some((m) => m.kind === 'leave' && m.exit === 'slide'); }, null, 40000);
+  ok(['wood', 'ice', 'blue'].every((x) => parts.has(x)), `the ride: wood, ice, blue (${[...parts].join(', ')})`);
+  ok((await hostLog(page)).some((m) => m.kind === 'leave' && m.exit === 'slide'), 'way.leave with exit "slide"');
+  const home = await until(page, async (p) => { const s = await st(p); return s.phase === 'walking' && near(s, L.ENTRANCES.lamppost) && s.size === 1; }, null, 20000);
+  ok(home, 'nobody takes you on after the slide: back at the lamp post, full size (W19)');
   ok(page.errors.length === 0, `no errors ${page.errors.join(' | ')}`);
   await page.close();          // software WebGL: one page at a time, or the next one stalls
 }
@@ -199,6 +249,19 @@ const towards = (id, u, v = 0) => { const f = L.FRAMES[id]; const [x, z] = L.wor
   await until(page, async (p) => (await hostLog(p)).some((m) => m.kind === 'leave'), null, 15000);
   const came = await until(page, async (p) => { const s = await st(p); return s.phase === 'walking' && near(s, L.ENTRANCES.wardrobe); }, null, 20000);
   ok(came, 'the host\'s round trip: back through the wardrobe\'s doors');
+  // With reduce motion, the shrink and the ride are a plain fade too (W33).
+  {
+    const b = L.world(L.FRAMES.slide, 1.9, 4.38), bt = L.world(L.FRAMES.slide, 1.9, 6);
+    await page.evaluate(() => { for (const s of document.querySelectorAll('select[data-exit]')) s.value = 'open'; window.__host.sendStatus(); });
+    await page.waitForTimeout(500);
+    await jump(page, b[0], b[1], Math.atan2(-(bt[0] - b[0]), -(bt[1] - b[1])), 'library');
+    await page.waitForTimeout(400);
+    await holdUp(page, async (p) => (await st(p)).phase !== 'walking', 15000);
+    ok((await st(page)).anim === 'fade-out', 'with reduce motion, the slide is a plain fade');
+    await until(page, async (p) => (await hostLog(p)).some((m) => m.kind === 'leave' && m.exit === 'slide'), null, 15000);
+    ok((await hostLog(page)).some((m) => m.kind === 'leave' && m.exit === 'slide'), '... and way.leave "slide"');
+    await until(page, async (p) => (await st(p)).phase === 'walking', null, 20000);
+  }
   await page.forest().evaluate(() => { document.getElementById('gearbtn').click(); document.getElementById('tolamp').click(); });
   await page.waitForTimeout(800);
   ok(near(await st(page), L.ENTRANCES.lamppost), '"Back to the lamp post" in the menu');

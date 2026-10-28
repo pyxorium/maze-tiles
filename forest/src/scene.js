@@ -101,8 +101,9 @@ export function createScene(renderer, L) {
     // Warm light from the library's windows lying on the snow.
     const f = FRAMES.slide;
     const lights = [];
-    for (const v of [-3.2, 3.2]) lights.push(toWorld(f, LIBRARY.front - 1.4, v));
-    for (const s of [-1, 1]) for (const u of [3.5, 7.5, 11.5]) lights.push(toWorld(f, LIBRARY.front + u, s * (LIBRARY.width / 2 + 1.4)));
+    // (Only below the tall windows: the round ones on the left are up high, above the mezzanine.)
+    lights.push(toWorld(f, LIBRARY.front - 1.4, 3.2));
+    for (const u of [4.1, 8.1, 12.1]) lights.push(toWorld(f, u, LIBRARY.width / 2 + 1.4));
     g.save(); g.globalCompositeOperation = 'source-over';
     for (const [x, z] of lights) {
       const [cx, cz] = toCanvas(x, z), r = 2.6 * px;
@@ -185,15 +186,18 @@ export function createScene(renderer, L) {
   const SNOW_BOX = [36, 16, 36];
   const wf = FRAMES.wardrobe;
   const shelterAt = toWorld(wf, -WARDROBE.depth / 2, 0);
+  const lf = FRAMES.slide, libAt = toWorld(lf, LIBRARY.front + LIBRARY.depth / 2, 0);
   const snowMat = new THREE.ShaderMaterial({
     uniforms: {
       time: { value: 0 }, speed: { value: L.snowSpeed }, drift: { value: L.snowDrift }, size: { value: L.flakeSize },
       centre: { value: new THREE.Vector3() }, box: { value: new THREE.Vector3(...SNOW_BOX) }, scale: { value: 400 },
       fogColour: { value: col(L.fogColour) }, fogDensity: { value: L.fogDensity },
       shelter: { value: new THREE.Vector4(shelterAt[0], shelterAt[1], wf.d[0], wf.d[1]) }, shelterSize: { value: new THREE.Vector3(WARDROBE.depth / 2 + 0.05, WARDROBE.half + 0.05, WARDROBE.height) },
+      // The library (you walk about inside it): no snow within its walls.
+      shelter2: { value: new THREE.Vector4(libAt[0], libAt[1], lf.d[0], lf.d[1]) }, shelterSize2: { value: new THREE.Vector3(LIBRARY.depth / 2 + 0.1, LIBRARY.width / 2 + 0.1, 8) },
     },
     vertexShader: `
-      attribute float seed; uniform float time, speed, drift, size, scale; uniform vec3 centre, box; uniform vec4 shelter; uniform vec3 shelterSize;
+      attribute float seed; uniform float time, speed, drift, size, scale; uniform vec3 centre, box; uniform vec4 shelter, shelter2; uniform vec3 shelterSize, shelterSize2;
       varying float vD; varying float vHide;
       void main() {
         vec3 p = position;
@@ -203,6 +207,9 @@ export function createScene(renderer, L) {
         vec2 q = w.xz - shelter.xy;
         float u = dot(q, shelter.zw), v = dot(q, vec2(-shelter.w, shelter.z));
         vHide = (abs(u) < shelterSize.x && abs(v) < shelterSize.y && w.y < shelterSize.z) ? 1.0 : 0.0;
+        vec2 q2 = w.xz - shelter2.xy;
+        float u2 = dot(q2, shelter2.zw), v2 = dot(q2, vec2(-shelter2.w, shelter2.z));
+        if (abs(u2) < shelterSize2.x && abs(v2) < shelterSize2.y && w.y < shelterSize2.z) vHide = 1.0;
         vec4 mv = modelViewMatrix * vec4(w, 1.0);
         vD = -mv.z;
         gl_PointSize = size * (0.6 + seed * 0.8) * scale * 0.045 / max(0.5, -mv.z);

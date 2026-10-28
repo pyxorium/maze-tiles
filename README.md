@@ -112,17 +112,24 @@ site's `HIDDEN_PAGES`).
 
 The obelisk's first destination: a snowy forest at night, a lamp post in a clearing, four winding paths to four
 portals (the wardrobe, the tree-door, the stone arch, and the library's slide back to the maze). Plan:
-claude/winter-forest-plan.md in the Foundry project (decisions W1 to W28). **Step 1 of 3, the forest outdoors:** the
-clearing with its settings (W6), the paths, the outsides of the four portals, their dormant and open looks, going
-through the wardrobe and the arch, the four entrances, `ways.json`, the postcard. Step 2 adds the insides (the
-tunnel and its door, the library, the shrink, the slide ride) and the new places' sounds; step 3 the travel page
-and publishing. Not published yet.
+claude/winter-forest-plan.md in the Foundry project (decisions W1 to W33). **Steps 1 and 2 of 3:** the clearing
+with its settings (W6), the paths (the wardrobe's about 45 blocks with one bend, hidden from the clearing: W32), the
+four portals with their dormant and open looks and their going-through moments; the tunnel inside the great tree
+(bigger on the inside, the plank door halfway, its lantern); the library inside (shelves, tables and lamps, the
+fireplace, open books, the rolling ladder, the stairs up to the mezzanine and its reading nook, the bench and the
+figurine-sized door); the shrink and the slide ride (wood, ice through the forest, the Great Hall's blue); the new
+places' sounds; the four entrances, `ways.json`, the postcard. Step 3 is the travel page and publishing. Not
+published yet.
 
 - **Ways-only** (W16): opened directly (any viewer without a host) it shows its postcard, "This place is reached
   through other places."; only a host's `arrive` lets you in. Its `ways.json` says `"entry": "ways-only"`.
-- `forest\src\` its code (`main.js`, `scene.js` the world, `portals.js` the four portals, `layout.js` where
-  everything is, `ways.js` a copy of the maze's, changed for the forest, `look.js` the settings, `sound.js`,
-  `postcard.js`). It uses the maze's `src\controls.js` as it is; nothing in the maze's `src\` is changed (W27).
+- `forest\src\` its code: `main.js` (the four places, walking, the camera, the moments), `scene.js` the forest,
+  `portals.js` the portals' outsides, `library.js` the library's inside, `tunnel.js` the great tree's tunnel, `ride.js`
+  the slide ride, `layout.js` and `inside.js` where everything is (no three.js, so the tests run them), `textures.js`
+  (all drawn in code), `ways.js` (a copy of the maze's, changed for the forest), `look.js` the settings, `sound.js`,
+  `postcard.js`. It uses the maze's `src\controls.js` as it is; nothing in the maze's `src\` is changed (W27).
+- The library and the tunnel are drawn over the forest (the forest first, then the room with its own lights), so the
+  library's windows and the tunnel's mouth show the real forest, live.
 - `forest\tile\` the tile: `index.html`, `forest.css`, `forest.js` (built), `ways.json`, `icon.png`, `banner.png`.
 - `npm run build-forest` builds `forest\tile\forest.js` (three.js and esbuild from the Foundry's folder, as the
   maze's build). Commit `forest\tile\forest.js` after building.
@@ -130,6 +137,8 @@ and publishing. Not published yet.
   portal leads, send a traveller in at each entrance; after you leave, it can bring you back through the same
   portal); http://127.0.0.1:5210/ is the tile on its own (the postcard); http://127.0.0.1:5210/dev/card-art.html
   draws the card pictures.
-- `test\winter-forest.test.mjs` (part of `npm test`): `ways.json`, the messages, the settings, every entrance a
-  place you can stand, every path walkable from the lamp post to its portal. `forest\test\browser\check.mjs` tries
+- `test\winter-forest.test.mjs` and `test\winter-forest-inside.test.mjs` (part of `npm test`): `ways.json`, the
+  messages, the settings, every entrance a place you can stand, every path walkable from the lamp post to its portal,
+  the wardrobe hidden from the clearing; the library (up the stairs to the nook, the mezzanine's edge, the bench and
+  the little door, the doors in and out, the camera), the tunnel (in, to the door, out), the ice run's way. `forest\test\browser\check.mjs` tries
   it all in a browser (run in the build chat).

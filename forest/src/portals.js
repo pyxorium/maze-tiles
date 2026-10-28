@@ -1,8 +1,9 @@
-// portals.js: the four portals' outsides (step 1 of W28), with their dormant and open looks (W18).
+// portals.js: the four portals' outsides (step 1 of W28), with their dormant and open looks (W18), and the library's
+// outside changed in step 2 to match its inside (round windows high on the mezzanine's side, columns, the chimney).
 //   wardrobe   the coats lane (W10): spruce boughs, then coats hanging from boughs, then coats on hangers on a rail,
 //              the snow giving way to boards, and the wardrobe's two plain doors seen from inside. Open: a thin line
 //              of warm light between the doors; going through, they swing outward into light.
-//   tree-door  the great old tree (W11) with a rounded tunnel carved into it (its inside and its door: step 2)
+//   tree-door  the great old tree (W11) with a rounded tunnel carved into it (its inside and its door: tunnel.js)
 //   arch       the stone arch (W12); open, its face shows this forest drawn again from another place (the clearing,
 //              looking at the lamp post) under another light, rippling; dormant, a faint shimmer
 //   slide      the library's outside (W13): cobblestone, a mossy snowy roof, warm frosted windows, trunks as columns
@@ -10,11 +11,13 @@
 // portal's group, a point (u, y, v) is at (-v, y, u).
 import * as THREE from 'three';
 import { FRAMES, WARDROBE, ARCH, TRUNK, LIBRARY, laneSpots, rng } from './layout.js';
+import { LIB } from './inside.js';
 import { col, glowTexture, mergeColoured } from './scene.js';
+import { canvasTexture, woodTexture, barkTexture, stoneTexture, cobbleTexture, roofTexture, windowTexture } from './textures.js';
 
-const P = (u, y, v) => new THREE.Vector3(-v, y, u);
+export const P = (u, y, v) => new THREE.Vector3(-v, y, u);
 
-function frameGroup(id) {
+export function frameGroup(id) {
   const f = FRAMES[id];
   const g = new THREE.Group();
   const d = new THREE.Vector3(f.d[0], 0, f.d[1]), r = new THREE.Vector3(f.r[0], 0, f.r[1]);
@@ -22,82 +25,6 @@ function frameGroup(id) {
   g.position.set(f.o[0], 0, f.o[1]);
   return g;
 }
-
-// ---- textures drawn in code --------------------------------------------------------------------------------------------
-function canvasTexture(w, h, draw, { repeat = null, srgb = true } = {}) {
-  const c = document.createElement('canvas'); c.width = w; c.height = h;
-  draw(c.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(c);
-  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-  if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...repeat); }
-  t.anisotropy = 4;
-  return t;
-}
-const woodTexture = (base = '#5a3a24', grain = 'rgba(30,16,8,0.35)', planks = 4) => canvasTexture(256, 256, (g, w, h) => {
-  g.fillStyle = base; g.fillRect(0, 0, w, h);
-  const rand = rng(5);
-  for (let i = 0; i < 120; i++) { g.strokeStyle = grain; g.lineWidth = 0.6 + rand() * 1.4; g.beginPath(); const x = rand() * w; g.moveTo(x, 0); g.bezierCurveTo(x + rand() * 8 - 4, h / 3, x + rand() * 8 - 4, (2 * h) / 3, x + rand() * 6 - 3, h); g.stroke(); }
-  g.fillStyle = 'rgba(15,8,4,0.6)';
-  for (let i = 1; i < planks; i++) g.fillRect((i * w) / planks - 1, 0, 2, h);
-});
-const barkTexture = () => canvasTexture(256, 512, (g, w, h) => {
-  g.fillStyle = '#4b3a2e'; g.fillRect(0, 0, w, h);
-  const rand = rng(11);
-  for (let i = 0; i < 90; i++) {
-    const x = rand() * w, wd = 3 + rand() * 9;
-    g.fillStyle = rand() < 0.5 ? 'rgba(20,14,10,0.55)' : 'rgba(120,100,82,0.25)';
-    g.beginPath(); g.moveTo(x, 0);
-    for (let y = 0; y <= h; y += 32) g.lineTo(x + Math.sin(y * 0.03 + i) * 6, y);
-    for (let y = h; y >= 0; y -= 32) g.lineTo(x + wd + Math.sin(y * 0.03 + i) * 6, y);
-    g.fill();
-  }
-}, { repeat: [3, 2] });
-const stoneTexture = (seed = 3) => canvasTexture(256, 256, (g, w, h) => {
-  g.fillStyle = '#d2ccc0'; g.fillRect(0, 0, w, h);
-  const rand = rng(seed);
-  for (let i = 0; i < 1600; i++) { const v = 150 + rand() * 80; g.fillStyle = `rgba(${v},${v - 4},${v - 12},0.35)`; g.fillRect(rand() * w, rand() * h, 2 + rand() * 6, 2 + rand() * 6); }
-});
-const cobbleTexture = () => canvasTexture(512, 512, (g, w, h) => {
-  g.fillStyle = '#3d3a36'; g.fillRect(0, 0, w, h);
-  const rand = rng(21);
-  for (let row = 0, y = 0; y < h + 40; row++) {
-    const rh = 34 + rand() * 14;
-    for (let x = (row % 2) * -20; x < w + 40;) {
-      const rw = 42 + rand() * 26, v = 105 + rand() * 60, t = rand() * 18;
-      g.fillStyle = `rgb(${v + t},${v + t * 0.6},${v - 8})`;
-      g.beginPath(); g.ellipse(x + rw / 2, y + rh / 2, rw / 2 - 3, rh / 2 - 3, 0, 0, Math.PI * 2); g.fill();
-      g.fillStyle = 'rgba(255,255,255,0.08)'; g.beginPath(); g.ellipse(x + rw / 2 - 4, y + rh / 2 - 5, rw / 3, rh / 5, 0, 0, Math.PI * 2); g.fill();
-      x += rw;
-    }
-    y += rh;
-  }
-}, { repeat: [2.5, 1.2] });
-const roofTexture = () => canvasTexture(256, 256, (g, w, h) => {
-  // Snow over moss: white above, the moss showing towards the eaves (the bottom of the picture) and in patches.
-  g.fillStyle = '#e8eef7'; g.fillRect(0, 0, w, h);
-  const rand = rng(31);
-  for (let i = 0; i < 140; i++) {
-    const y = h * (0.45 + rand() * 0.6), x = rand() * w, r = 6 + rand() * 22;
-    g.fillStyle = rand() < 0.6 ? 'rgba(62,92,52,0.85)' : 'rgba(92,118,66,0.8)';
-    g.beginPath(); g.ellipse(x, y, r, r * 0.6, 0, 0, Math.PI * 2); g.fill();
-  }
-  const grad = g.createLinearGradient(0, h * 0.85, 0, h); grad.addColorStop(0, 'rgba(232,238,247,0)'); grad.addColorStop(1, 'rgba(232,238,247,0.95)');
-  g.fillStyle = grad; g.fillRect(0, 0, w, h);
-});
-const windowTexture = () => canvasTexture(128, 160, (g, w, h) => {
-  const grad = g.createRadialGradient(w / 2, h * 0.55, 6, w / 2, h * 0.55, h * 0.75);
-  grad.addColorStop(0, '#ffd9a0'); grad.addColorStop(0.6, '#e99a4c'); grad.addColorStop(1, '#a8582a');
-  g.fillStyle = grad; g.fillRect(0, 0, w, h);
-  // Soft shapes inside (shelves, a lamp) and frost round the edges.
-  g.fillStyle = 'rgba(90,45,20,0.35)';
-  for (let i = 0; i < 4; i++) g.fillRect(8, 30 + i * 30, w * 0.35, 6);
-  g.fillStyle = 'rgba(255,240,200,0.5)'; g.beginPath(); g.arc(w * 0.72, h * 0.5, 9, 0, Math.PI * 2); g.fill();
-  const rand = rng(41);
-  for (let i = 0; i < 260; i++) {
-    const edge = rand() < 0.5, x = edge ? (rand() < 0.5 ? rand() * 22 : w - rand() * 22) : rand() * w, y = edge ? rand() * h : (rand() < 0.5 ? rand() * 22 : h - rand() * 22);
-    g.fillStyle = `rgba(235,242,255,${0.12 + rand() * 0.3})`; g.beginPath(); g.arc(x, y, 1 + rand() * 4, 0, Math.PI * 2); g.fill();
-  }
-});
 
 // =========================================================================================================================
 export function createPortals({ scene, renderer, sceneParts, look, other }) {
@@ -473,7 +400,7 @@ export function createPortals({ scene, renderer, sceneParts, look, other }) {
     };
   }
 
-  // ---- the library's outside (W13; inside in step 2) -------------------------------------------------------------------
+  // ---- the library's outside (W13; its inside is library.js) ----------------------------------------------------------------
   {
     const g = frameGroup('slide');
     const Lb = LIBRARY, wallH = 4.2, roofH = 3.2, front = Lb.front, back = front + Lb.depth, half = Lb.width / 2;
@@ -519,7 +446,7 @@ export function createPortals({ scene, renderer, sceneParts, look, other }) {
     }
     // Trunks as columns in the walls: at the corners and between the windows.
     const bark = new THREE.MeshLambertMaterial({ map: barkTexture(), color: 0xb7a99a });
-    const columns = [[front, -half], [front, half], [back, -half], [back, half], [front + Lb.depth / 2, -half], [front + Lb.depth / 2, half], [front, -1.3], [front, 1.3]];
+    const columns = [[front, -half], [front, half], [back, -half], [back, half], [front, -1.3], [front, 1.3], ...[6.1, 10.1].flatMap((u) => [[u, -half], [u, half]])];
     for (const [u, v] of columns) {
       const c = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.42, wallH + 0.5, 9), bark);
       c.position.copy(P(u, (wallH + 0.5) / 2 - 0.1, v)); c.castShadow = true;
@@ -542,10 +469,25 @@ export function createPortals({ scene, renderer, sceneParts, look, other }) {
       holder.add(s);
       g.add(holder);
     };
-    // Front: either side of the door (facing the clearing: -z in the group, so turn round).
-    for (const v of [-3.2, 3.2]) windowAt(front - 0.27, v, 2.2, 2.4, 0.8, Math.PI);
-    // Sides: three each.
-    for (const s of [-1, 1]) for (const u of [3.5, 7.5, 11.5]) windowAt(front + u, s * (half + 0.27), 2.4, 2.6, 0.8, s > 0 ? -Math.PI / 2 : Math.PI / 2);
+    // The tall windows (inside.js LIB.tall): front-right and the right side's three (facing the clearing is -z in
+    // the group, so the front's turns round). The round ones (LIB.round) sit high, above the mezzanine inside:
+    // front-left and the left side's three.
+    for (const t of LIB.tall) {
+      if (t.wall === 'front') windowAt(front - 0.27, t.at, t.w, t.h, t.sill, Math.PI);
+      else windowAt(t.at, half + 0.27, t.w, t.h, t.sill, -Math.PI / 2);
+    }
+    const roundMat = new THREE.MeshBasicMaterial({ map: windowTexture() });
+    for (const r of LIB.round) {
+      const holder = new THREE.Group();
+      if (r.wall === 'front') { holder.position.copy(P(front - 0.27, r.y, r.at)); holder.rotation.y = Math.PI; }
+      else { holder.position.copy(P(r.at, r.y, -half - 0.27)); holder.rotation.y = Math.PI / 2; }
+      holder.add(new THREE.Mesh(new THREE.CircleGeometry(r.r, 24), roundMat));
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(r.r + 0.04, 0.07, 6, 24), frameMat); ring.position.z = 0.03; holder.add(ring);
+      for (const a of [0, Math.PI / 2]) { const bar = new THREE.Mesh(new THREE.BoxGeometry(2 * r.r, 0.05, 0.06), frameMat); bar.rotation.z = a; bar.position.z = 0.03; holder.add(bar); }
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: col('#ffb870'), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.45 }));
+      s.position.set(0, 0, 0.5); s.scale.setScalar(r.r * 4); holder.add(s);
+      g.add(holder);
+    }
     // The door: arched planks, iron studs, a small lantern beside it.
     {
       const dw = 0.75, dh = 2.4;
@@ -562,9 +504,9 @@ export function createPortals({ scene, renderer, sceneParts, look, other }) {
       box.position.copy(P(front - 0.4, 2.3, 1.15));
       g.add(box);
     }
-    // A stone chimney at the back.
-    const chim = new THREE.Mesh(new THREE.BoxGeometry(1.0, 2.4, 1.0), wallMat);
-    chim.position.copy(P(back - 2.2, wallH + roofH * 0.55 + 0.6, half * 0.45));
+    // A stone chimney at the back, over the fireplace inside.
+    const chim = new THREE.Mesh(new THREE.BoxGeometry(1.1, 3.2, 1.1), wallMat);
+    chim.position.copy(P(back - 0.55, wallH + roofH - 0.2, 0));
     g.add(chim);
     scene.add(g);
     parts.library = { group: g };
@@ -573,7 +515,7 @@ export function createPortals({ scene, renderer, sceneParts, look, other }) {
   return {
     parts,
     shimmerTime,
-    // Each exit's look: 'open' or 'dormant' (W18). The tree-door's and the slide's looks are inside (step 2).
+    // Each exit's look: 'open' or 'dormant' (W18). The tree-door's and the slide's are inside (tunnel.js, library.js).
     setLook(exit, state) {
       const open = state === 'open';
       if (exit === 'wardrobe') parts.wardrobe.setGlow(open ? 1 : 0);
