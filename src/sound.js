@@ -3,13 +3,12 @@
 //   footsteps   a soft knock on stone for every step, a brighter tap on stairs, a scuff on the ramps, each with a
 //               little of the room's echo (more in the ivory rooms)
 //   the rooms   near-silence; now and then (every 8 to 20 s) one soft, glassy note, far away in a reverb, from a small
-//               set of notes for each kind of room: the sand rooms warmer, the slate landings cooler, the ivory rooms
-//               brighter, the Cellar duller and closer
+//               set of notes for each kind of room: the sand rooms warmer, the ivory rooms brighter, the Cellar duller
+//               and closer; none in the four landings, where only the stairs' taps sound
 //   the stairs  on the four landings' flights only: one short soft tap for each step, a step higher going up (lower
 //               going down) along a Shepard scale, which seems to rise for ever, as the stairs do
-//   the ways    the obelisk and the Lantern room's door, when they lead somewhere: one soft bright note as you come
-//               within about two blocks (once each time you come near); the door's creak as it opens and thud as it
-//               shuts
+//   the ways    nothing near the obelisk or the Lantern room's door (their glow says they lead somewhere); the door's
+//               creak as it swings open and thud as it shuts
 //   the fall    a rising rush as you drop through the hole, a thump as you land
 // Browsers only allow sound after the person does something, so start() is called on the first key, click or tap.
 // On or off (the bar's Sound button) is not remembered: the maze saves nothing (a reload starts again).
@@ -24,12 +23,10 @@ export const AREA_NOTES = {
 };
 export const NOTE_GAP = [8, 20];                  // seconds between distant notes
 export const SHEPARD = { voices: 6, base: 65.4, level: 0.022 };   // a tap's octaves from C2, and how loud the whole tap is
-export const NEAR = { chime: 2, again: 3 };       // blocks: the note within 2; it can sound again once you've been 3 away
 
 export function createSound() {
   let ctx = null, master, noise, reverb, wet;
-  let on = true, started = false, current = null, nextNote = 0, notes = 0, taps = 0, step12 = 0, chimes = 0;
-  const near = new Map();                          // 'obelisk' / 'door' → chimed this approach
+  let on = true, started = false, current = null, nextNote = 0, notes = 0, taps = 0, step12 = 0;
 
   function noiseBuffer(seconds) {
     const b = ctx.createBuffer(1, Math.round(ctx.sampleRate * seconds), ctx.sampleRate);
@@ -104,7 +101,7 @@ export function createSound() {
     resume() { if (ctx && started && ctx.state === 'suspended') ctx.resume(); },
     setOn(v) { on = !!v; if (ctx) ease(master.gain, on ? 0.8 : 0, 0.08); },
     get on() { return on; },
-    state: () => ({ on, started, running: !!ctx && ctx.state === 'running', bed: current, notes, taps, step: step12, chimes }),
+    state: () => ({ on, started, running: !!ctx && ctx.state === 'running', bed: current, notes, taps, step: step12 }),
 
     // surface: 'stone', 'steps' or 'ramp'; up: +1 climbing, -1 going down, 0 level.
     step(surface = 'stone', up = 0) {
@@ -155,27 +152,18 @@ export function createSound() {
       burst({ f: 500, q: 0.7, type: 'lowpass', level: 0.22, decay: 0.16 });
     },
 
-    // Every frame: area ('sand', 'slate', 'ivory' or 'dull'); obelisk and door: { dist, open } or null when not in
-    // their room.
-    update({ area, obelisk, door }) {
+    // Every frame: area ('sand', 'slate', 'ivory' or 'dull'); notes: false where no distant notes play (the landings).
+    update({ area, notes: noteHere = true }) {
       if (!ctx) return;
       if (area !== current) { current = area; ease(wet.gain, 0.45 + areaOf().echo * 2, 0.7); }
       if (!ready()) return;
-      // Now and then, one distant note.
+      // Now and then, one distant note (none in the landings: the time just runs on there).
+      if (ctx.currentTime >= nextNote && !noteHere) nextNote = ctx.currentTime + NOTE_GAP[0] + Math.random() * (NOTE_GAP[1] - NOTE_GAP[0]);
       if (ctx.currentTime >= nextNote) {
         const a = areaOf(), n = a.notes[Math.floor(Math.random() * a.notes.length)];
         glass(MIDI(n), { level: a.level, lowpass: a.bright });
         notes++;
         nextNote = ctx.currentTime + NOTE_GAP[0] + Math.random() * (NOTE_GAP[1] - NOTE_GAP[0]);
-      }
-      // Coming near a way that leads somewhere: one soft bright note.
-      for (const [id, s] of [['obelisk', obelisk], ['door', door]]) {
-        if (!s || !s.open || s.dist > NEAR.again) { near.delete(id); continue; }
-        if (s.dist <= NEAR.chime && !near.get(id)) {
-          near.set(id, true); chimes++;
-          glass(MIDI(id === 'obelisk' ? 88 : 91), { level: 0.03, decay: 2.6, attack: 0.03, dry: 0.5 });
-          glass(MIDI(id === 'obelisk' ? 95 : 98), { level: 0.012, decay: 2.2, attack: 0.03, dry: 0.5, at: 0.09 });
-        }
       }
     },
   };

@@ -80,7 +80,7 @@ test('placing back the other way is the inverse, so walking through and back ret
 });
 
 // ---- free walking ----
-import { freeMove, facingOfYaw, RADIUS, DOOR_SPAN } from '../src/walk.js';
+import { freeMove, facingOfYaw, RADIUS, DOOR_SPAN, narrowWays } from '../src/walk.js';
 
 function walkFree(room, pos, dir, steps, passable = () => true) {
   const heights = heightsOf(M.rooms[room]), gates = gatesOf(M.rooms[room]), drops = dropsOf(M.rooms[room]);
@@ -303,28 +303,61 @@ test('free walking: through every way on in every room, from its standing cell',
   }
 });
 
-test('M38: walking at any door, from anywhere and at any angle, the body never goes into the wall beside its arch, and still gets through', () => {
+test('M38: walking through any door from either side (its door side or the open edge on the other), from anywhere and at any angle: the body never goes into the wall beside the arch, gets through, and can always walk on', () => {
   const R = 0.2;                                                     // the figure's body (world.js buildFigure)
-  let worst = 0, through = 0, tries = 0;
-  for (const id of Object.keys(MAP.rooms)) {
-    const room = MAP.rooms[id], gates = gatesOf(room), heights = heightsOf(room), drops = dropsOf(room);
-    const passable = (q) => !!q.way.to && !q.way.closed;
-    for (const g of gates.filter((q) => q.way.kind === 'door' && passable(q))) {
+  const passable = (q) => !!q.way.to && !q.way.closed;
+  const env = (id) => { const n = narrowWays(M, id); return { heights: heightsOf(M.rooms[id]), gates: gatesOf(M.rooms[id]), drops: dropsOf(M.rooms[id]), passable, narrow: (g) => n.has(g.way.id) }; };
+  // How far the body reaches outside the arch, wherever it overlaps a way through a door (0: not at all).
+  const into = (e, p) => {
+    let worst = 0;
+    for (const g of e.gates) {
+      if (!e.narrow(g)) continue;
       const lat = g.dir[0] === 0 ? 0 : 1;
+      const along = (p[1 - lat] - (g.L[1 - lat] + 0.5)) * g.dir[1 - lat];
+      if (along + R <= 0.5 || Math.abs(p[lat] - (g.L[lat] + 0.5)) > 0.5 + R) continue;
+      const u = p[lat] - g.O[lat];
+      worst = Math.max(worst, DOOR_SPAN[0] - (u - R), (u + R) - DOOR_SPAN[1]);
+    }
+    return worst;
+  };
+  let worst = 0, where = '', through = 0, tries = 0, stuck = [];
+  for (const id of ALL) {
+    const e = env(id);
+    for (const g of e.gates.filter((q) => e.narrow(q) && passable(q))) {
+      const lat = g.dir[0] === 0 ? 0 : 1;
+      const portal = portalsOf(M, id).find((q) => q.gate.way.id === g.way.id);
       for (let off = -0.45; off <= 0.45001; off += 0.15) for (let ang = -1.2; ang <= 1.2001; ang += 0.3) {
         let p = [g.L[0] + 0.5, g.L[1] + 0.5]; p[lat] += off;
         const f = [g.dir[0] * Math.cos(ang) + (lat === 0 ? Math.sin(ang) : 0), g.dir[1] * Math.cos(ang) + (lat === 1 ? Math.sin(ang) : 0)];
         let crossed = false;
         for (let i = 0; i < 80 && !crossed; i++) {
-          const r = freeMove(p, [f[0] * 0.04, f[1] * 0.04], { heights, gates, drops, passable });
+          const r = freeMove(p, [f[0] * 0.04, f[1] * 0.04], e);
           p = r.pos; crossed = !!r.crossed;
-          const along = (p[1 - lat] - (g.L[1 - lat] + 0.5)) * g.dir[1 - lat];
-          if (!crossed && along + R > 0.5) { const u = p[lat] - g.O[lat]; worst = Math.max(worst, DOOR_SPAN[0] - (u - R), (u + R) - DOOR_SPAN[1]); }
+          if (!crossed) { const v = into(e, p); if (v > worst) { worst = v; where = `${id}.${g.way.id} at ${p.map((x) => x.toFixed(2))}`; } }
         }
         if (Math.abs(off) <= 0.3 && Math.abs(ang) <= 0.6) { tries++; if (crossed) through++; }
+        if (!crossed) continue;
+        // Through: in the next room, not in its wall, and free to walk on into the room.
+        const e2 = env(portal.toRoom), q = apply(invert(portal.P), [p[0], p[1], 0]);
+        const v = into(e2, q);
+        if (v > worst) { worst = v; where = `arriving in ${portal.toRoom} from ${id}.${g.way.id}`; }
+        const g2 = e2.gates.find((x) => x.way.id === portal.toWay);
+        const r2 = freeMove([q[0], q[1]], [-g2.dir[0] * 0.05, -g2.dir[1] * 0.05], e2);
+        if (Math.hypot(r2.pos[0] - q[0], r2.pos[1] - q[1]) < 0.04) stuck.push(`${portal.toRoom} from ${id}.${g.way.id} off ${off.toFixed(2)}`);
       }
     }
   }
-  assert.ok(worst <= 1e-9, `the body went ${worst.toFixed(2)} into a door jamb`);
+  assert.ok(worst <= 1e-9, `the body went ${worst.toFixed(2)} into the wall beside an arch (${where})`);
   assert.equal(through, tries, 'walking at a door roughly on line gets you through');
+  assert.deepEqual(stuck, [], 'never stuck after coming through');
+});
+
+test('M38: even somewhere it shouldn\'t be (half in a jamb), the figure can always walk out', () => {
+  const id = 'hall', g = gatesOf(M.rooms[id]).find((x) => x.way.id === 'closet'), n = narrowWays(M, id);
+  const e = { heights: heightsOf(M.rooms[id]), gates: gatesOf(M.rooms[id]), drops: dropsOf(M.rooms[id]), passable: () => true, narrow: (q) => n.has(q.way.id) };
+  const lat = g.dir[0] === 0 ? 0 : 1;
+  const p = [g.L[0] + 0.5, g.L[1] + 0.5]; p[lat] += 0.25; p[1 - lat] += g.dir[1 - lat] * 0.4;   // half in the jamb
+  const r = freeMove(p, [-g.dir[0] * 0.05, -g.dir[1] * 0.05], e);
+  assert.ok(Math.hypot(r.pos[0] - p[0], r.pos[1] - p[1]) > 0.04, 'stepping back into the room works');
+  assert.deepEqual([...narrowWays(M, 'closet')].sort(), ['gallery', 'hall'], 'the Closet\'s open edges into doors are narrow too');
 });

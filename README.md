@@ -30,9 +30,9 @@ through the door come in a block in front of it, facing into the room, and it sw
 
 **Sound** (since 0.4.0), all made in code, hushed like a gallery: footsteps (stone, stairs, ramps) with a little of
 the room's echo; otherwise near-silence, with now and then one soft distant note (a set of notes for each kind of
-room); on the four landings' flights a soft tap for each step, climbing an endless Shepard scale as the stairs climb
-for ever; one soft bright note as you come near the obelisk or the door when it leads somewhere; the door's creak
-and thud; the fall. It starts with your first key, click or tap; the bar's **Sound** button turns it off and on
+room); in the four landings no distant notes, only a soft tap for each step on their flights, climbing an endless
+Shepard scale as the stairs climb for ever; nothing near the obelisk or the door (their glow says they lead
+somewhere); the door's creak and thud as you go through; the fall. It starts with your first key, click or tap; the bar's **Sound** button turns it off and on
 (not remembered).
 
 **Map** (or M) shows the rooms you've found and the ways you've taken. The gear menu also has **Back to the
@@ -50,7 +50,8 @@ swoop through doorways become quick fades. Nothing is saved: a reload starts aga
 - **0.4.0** (Oct 29 2026, M28 to M36, claude/escher-maze-04-plan.md): the Lantern room's door is the second way out
   and in (exit and entrance `second-door`); the obelisk a block shorter; sound; published from pyxorium.com (the
   maze's place and signposts there too), the obelisk's signpost starting out leading to Winter Forest's lamp post.
-  Also the figure no longer goes into the wall beside a door's arch (M38).
+  Also the figure keeps to a door's arch from either side, so it never goes into the wall beside it, and can never
+  get stuck there (M38).
 
 ## The folders
 

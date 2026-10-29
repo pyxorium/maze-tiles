@@ -19,7 +19,7 @@ import { joinWays, exitOf } from './ways.js';
 import { createView } from './view.js';
 import {
   DIRS, LEFT_OF, RIGHT_OF, gatesOf, heightsOf, dropsOf, step, apply, invert, IDENTITY,
-  freeMove, facingOfYaw, cellOf, compose, portalsOf, slopesOf, slopeHeight, FALL, SLAB,
+  freeMove, facingOfYaw, cellOf, compose, portalsOf, slopesOf, slopeHeight, FALL, SLAB, narrowWays,
 } from './walk.js';
 import { createControls } from './controls.js';
 import { createUi } from './ui.js';
@@ -50,6 +50,7 @@ const heightsCache = new Map(ROOM_IDS.map((id) => [id, heightsOf(MAP.rooms[id])]
 const dropsCache = new Map(ROOM_IDS.map((id) => [id, dropsOf(MAP.rooms[id])]));
 const slopesCache = new Map(ROOM_IDS.map((id) => [id, slopesOf(MAP.rooms[id])]));
 const portalCache = new Map(ROOM_IDS.map((id) => [id, portalsOf(MAP, id)]));
+const narrowCache = new Map(ROOM_IDS.map((id) => [id, narrowWays(MAP, id)]));   // M38: ways through a door, either side
 const portalOf = (roomId, wayId) => portalCache.get(roomId).find((p) => p.gate.way.id === wayId);
 
 const fig3 = buildFigure();
@@ -123,19 +124,9 @@ function footstep() {
   // M37: on the four landings' flights, a soft tap on the endless Shepard scale for each step.
   if (surface === 'steps' && isLanding(fig.room)) sound.tap(up);
 }
-// The sources in each room: its waystones and door portals, where they stand in the room's own coordinates.
-const SOURCES = new Map(ROOM_IDS.map((id) => {
-  const R = MAP.rooms[id];
-  const marks = (R.marks || []).filter((m) => m.waystone).map((m) => ({ exit: m.waystone.exit, kind: 'obelisk', at: [m.at[0] + 0.5, m.at[1] + 0.5] }));
-  const doors = R.ways.filter((w) => w.portal).map((w) => ({ exit: w.portal.exit, kind: 'door', at: w.side === 'ne' ? [w.at + 0.5, 0] : [0, w.at + 0.5] }));
-  return [id, [...marks, ...doors]];
-}));
 function updateSound() {
-  const src = (kind) => {
-    const s = SOURCES.get(fig.room).find((x) => x.kind === kind);
-    return s ? { dist: Math.hypot(s.at[0] - fig.local[0], s.at[1] - fig.local[1]), open: ways.state(s.exit) === 'open' } : null;
-  };
-  sound.update({ area: soundArea(fig.room), obelisk: src('obelisk'), door: src('door') });
+  // M37: in the four landings only the Shepard taps, no distant notes.
+  sound.update({ area: soundArea(fig.room), notes: !isLanding(fig.room) });
 }
 
 // ---- moving -------------------------------------------------------------------------------------------------------
@@ -359,10 +350,12 @@ function updateFree(dt) {
   const f = [Math.sin(fig.yaw), -Math.cos(fig.yaw)];
   const move = [f[0] * fwd * params.walkSpeed * dt, f[1] * fwd * params.walkSpeed * dt];
   const gates = gatesCache.get(fig.room);
-  // Doorways are narrow: walking at one, ease toward its middle.
+  // Doorways are narrow: walking at one (from either side, M38), ease toward its middle.
+  const narrowHere = narrowCache.get(fig.room);
+  const narrow = (g) => narrowHere.has(g.way.id);
   if (fwd && params.doorAssist > 0) {
     for (const g of gates) {
-      if (g.way.kind !== 'door' || !passable(g)) continue;
+      if (!narrow(g) || !passable(g)) continue;
       const toward = (f[0] * g.dir[0] + f[1] * g.dir[1]) * Math.sign(fwd);
       if (toward < 0.5) continue;
       const lat = g.dir[0] === 0 ? 0 : 1;
@@ -377,7 +370,7 @@ function updateFree(dt) {
     }
   }
   if (!move[0] && !move[1]) { settleHeight(dt); return; }
-  const r = freeMove(fig.local, move, { heights: heightsCache.get(fig.room), gates, drops: dropsCache.get(fig.room), passable });
+  const r = freeMove(fig.local, move, { heights: heightsCache.get(fig.room), gates, drops: dropsCache.get(fig.room), passable, narrow });
   const moved = Math.hypot(r.pos[0] - fig.local[0], r.pos[1] - fig.local[1]);
   fig.local = [r.pos[0], r.pos[1], fig.local[2]];
   fig.cell = cellOf(r.pos[0], r.pos[1]);

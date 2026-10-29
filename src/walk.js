@@ -161,15 +161,31 @@ export const IDENTITY = { k: 0, tx: 0, ty: 0, dy: 0 };
 // through (crossed). Moving back the way you came is never refused, so the figure can't get stuck. Slightly off
 // line for an opening ahead, it eases sideways into it.
 // M38 (0.4.0): a door's far cell is the doorway through the wall, and only its arch is open (DOOR_SPAN across the
-// cell, as world.js draws it): the footprint may reach into it only within the arch, or the figure's side went into
-// the wall beside the door.
+// cell, as world.js draws it). Every door in the maze is a door on one side only: on the other it's an open edge a
+// whole block wide (a "hallway"). On both sides the footprint keeps to the arch's width where it reaches into the way
+// (`narrow` gates: narrowWays below), or the body went into the wall beside the arch, or came out of the walkway into
+// the wall. A move is refused only if it would take the footprint further outside the arch, never if it takes it
+// back in, so the figure can never be stuck (easing sideways, as for any opening, slips you into the arch).
 export const RADIUS = 0.22;
 export const DOOR_SPAN = [0.22, 0.78];
+// The ways of a room that go through a door, on either side: its own doors, and its open edges whose other side is a
+// door.
+export function narrowWays(map, roomId) {
+  const out = new Set();
+  for (const w of map.rooms[roomId].ways) {
+    if (w.kind === 'door') { out.add(w.id); continue; }
+    if (!w.to) continue;
+    const [r2, w2] = splitTo(w.to);
+    const other = map.rooms[r2] && map.rooms[r2].ways.find((x) => x.id === w2);
+    if (other && other.kind === 'door') out.add(w.id);
+  }
+  return out;
+}
 export const cellOf = (x, y) => [Math.floor(x), Math.floor(y)];
 
 // A hole (drops) counts as floor for the footprint, so you can walk round its edge; when the centre enters it,
 // you fall (result.fell).
-export function freeMove(pos, [dx, dy], { heights, gates, drops = [], passable = () => true, radius = RADIUS }) {
+export function freeMove(pos, [dx, dy], { heights, gates, drops = [], passable = () => true, radius = RADIUS, narrow = (g) => g.way.kind === 'door' }) {
   let bumped = null;
   const start = cellOf(pos[0], pos[1]);
   const gateOut = (cx, cy, from) => gates.find((q) => q.O[0] === cx && q.O[1] === cy && eq(q.L, from));
@@ -190,26 +206,31 @@ export function freeMove(pos, [dx, dy], { heights, gates, drops = [], passable =
     const y0 = Math.floor(py - radius), y1 = Math.floor(py + radius - 1e-9);
     let top = -Infinity;
     for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) {
-      const from = cx === c[0] && cy === c[1] ? start : c;
-      const h = heightAt(cx, cy, from);
+      const h = heightAt(cx, cy, cx === c[0] && cy === c[1] ? start : c);
       if (h === undefined) return null;
-      if (!heights.has(k2(cx, cy))) {
-        const g = gateOut(cx, cy, from);
-        if (g && g.way.kind === 'door') {
-          const lat = g.dir[0] === 0 ? 0 : 1, u = (lat === 0 ? px : py) - g.O[lat];
-          if (u - radius < DOOR_SPAN[0] - 1e-9 || u + radius > DOOR_SPAN[1] + 1e-9) return null;
-        }
-      }
       if (cx !== c[0] && cy !== c[1] && (heightAt(cx, c[1], c) === undefined || heightAt(c[0], cy, c) === undefined)) return null;
       top = Math.max(top, h);
     }
     return top;
+  };
+  // How far a square centred at (px, py) reaches outside an arch, where it reaches into a narrow way (0: not at all).
+  const jamb = (px, py) => {
+    let out = 0;
+    for (const g of gates) {
+      if (!narrow(g)) continue;
+      const [ox, oy] = g.O;
+      if (ox < Math.floor(px - radius) || ox > Math.floor(px + radius - 1e-9) || oy < Math.floor(py - radius) || oy > Math.floor(py + radius - 1e-9)) continue;
+      const lat = g.dir[0] === 0 ? 0 : 1, u = (lat === 0 ? px : py) - g.O[lat];
+      out = Math.max(out, DOOR_SPAN[0] - (u - radius), (u + radius) - DOOR_SPAN[1]);
+    }
+    return out;
   };
   let [x, y] = pos;
   let support = footprint(x, y);
   const tryMove = (nx, ny) => {
     const next = footprint(nx, ny);
     if (next === null) return false;
+    if (jamb(nx, ny) > Math.max(0, jamb(x, y)) + 1e-9) return false;  // not further into the wall beside an arch
     // The centre stays over something within half a block of what you stand on: you can hang over a stair's
     // edge, not float out over the floor beside it.
     const c = cellOf(nx, ny), hc = heightAt(c[0], c[1], start);

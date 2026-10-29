@@ -455,7 +455,6 @@ try {
     const leftDoor = (await hp.evaluate(() => window.__host.log)).filter((p) => p.kind === 'leave' && p.exit === 'second-door');
     ok(leftDoor.length === 1 && leftDoor[0].facing === 'ne' && Object.keys(leftDoor[0]).sort().join() === 'exit,facing,kind,v', 'pushing the open door: it swings open and way.leave says "second-door" (and the facing only)');
     ok(s.doorAngle > 1 && s.room === 'lantern', `the door wide open as you go (${s.doorAngle.toFixed(2)} rad)`);
-    ok(s.sound.chimes >= 2, `one soft bright note coming near the open obelisk, one near the open door (${s.sound.chimes})`);
     await shot(hp, '17-door-leaving');
     await hp.evaluate(() => window.__host.arriveDoor());
     await until(async () => { const x = await f.evaluate(() => window.__maze.state()); return x.cell.join() === '2,1' && !x.fading; });
