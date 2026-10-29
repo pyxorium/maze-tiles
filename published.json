@@ -1,6 +1,4 @@
 {
-  "account": "did:plc:6vxjigxrqizmbo56gojxico3",
-  "handle": "thunderbird.cafe",
   "lexicons": {
     "cafe.thunderbird.way.place": {
       "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/com.atproto.lexicon.schema/cafe.thunderbird.way.place",
@@ -16,32 +14,28 @@
     }
   },
   "maze": {
-    "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3mys6stpsyc2b",
-    "cid": "bafyreibd5ougkwa3qgqy45ehxskce462r25t6x7z32q73k4nm57fujbioy",
-    "manifestCid": "bafyreiapgs53vd4cyjfftk3stayw56lri5citzq6kpofpysy4u2wje3lia",
-    "publishedAt": "2026-10-26T16:55:14.538Z"
+    "uri": "at://did:plc:rqbqpaaluty5v47jwciowpik/ing.dasl.masl/3myyjuyr2ja2s",
+    "cid": "bafyreigfeq5q5ba4ba2jkckcn7sarurbrmnpfssmacakujbcecultm77tu",
+    "manifestCid": "bafyreib3lnw26t54w55sucknxvnhpgdb3mu4b3qkcbkffbk47nq2unnkxm",
+    "publishedAt": "2026-10-29T05:29:16.126Z"
   },
   "places": {
-    "maze": {
-      "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.place/maze",
-      "cid": "bafyreiepngso4mcs7drc3rskwnhu4gktvbjxez5hcdo5o2cl6yhydnqd3q",
-      "tile": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3mys6stpsyc2b",
-      "tileCid": "bafyreibd5ougkwa3qgqy45ehxskce462r25t6x7z32q73k4nm57fujbioy",
-      "updatedAt": "2026-10-26T16:55:17.141Z"
-    },
     "winter-forest": {
       "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.place/winter-forest",
       "cid": "bafyreifaglqlunbgrp7ehjsfgju6v7foyuvsxnnwzl3ouvw6xhh6himq6e",
       "tile": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3myxm45elkp22",
       "tileCid": "bafyreifahwnqqfnfxeqgkvq7sbnbxspne2nw5hrccoskrfuadn2rsudura",
       "updatedAt": "2026-10-28T20:36:27.450Z"
+    },
+    "maze": {
+      "uri": "at://did:plc:rqbqpaaluty5v47jwciowpik/cafe.thunderbird.way.place/maze",
+      "cid": "bafyreiegzkwujelmekaqalibi675ewyrjhdjtzhhexhwro3447gxlr2rua",
+      "tile": "at://did:plc:rqbqpaaluty5v47jwciowpik/ing.dasl.masl/3myyjuyr2ja2s",
+      "tileCid": "bafyreigfeq5q5ba4ba2jkckcn7sarurbrmnpfssmacakujbcecultm77tu",
+      "updatedAt": "2026-10-29T05:29:18.784Z"
     }
   },
   "signposts": {
-    "maze.obelisk": {
-      "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.signpost/maze.obelisk",
-      "createdAt": "2026-10-26T16:55:17.313Z"
-    },
     "winter-forest.wardrobe": {
       "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.signpost/winter-forest.wardrobe",
       "createdAt": "2026-10-28T19:15:19.526Z"
@@ -57,6 +51,14 @@
     "winter-forest.slide": {
       "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.signpost/winter-forest.slide",
       "createdAt": "2026-10-28T19:15:19.990Z"
+    },
+    "maze.obelisk": {
+      "uri": "at://did:plc:rqbqpaaluty5v47jwciowpik/cafe.thunderbird.way.signpost/maze.obelisk",
+      "createdAt": "2026-10-29T05:29:19.010Z"
+    },
+    "maze.second-door": {
+      "uri": "at://did:plc:rqbqpaaluty5v47jwciowpik/cafe.thunderbird.way.signpost/maze.second-door",
+      "createdAt": "2026-10-29T05:29:19.225Z"
     }
   },
   "winter-forest": {
@@ -64,5 +66,34 @@
     "cid": "bafyreifahwnqqfnfxeqgkvq7sbnbxspne2nw5hrccoskrfuadn2rsudura",
     "manifestCid": "bafyreic6amoafbwfik4cs2s22tfkfpnkyj53qx5ai7223bbncutxtx4tf4",
     "publishedAt": "2026-10-28T20:36:24.507Z"
+  },
+  "accounts": {
+    "thunderbird.cafe": "did:plc:6vxjigxrqizmbo56gojxico3",
+    "pyxorium.com": "did:plc:rqbqpaaluty5v47jwciowpik"
+  },
+  "earlier": {
+    "thunderbird.cafe": {
+      "maze": {
+        "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3mys6stpsyc2b",
+        "cid": "bafyreibd5ougkwa3qgqy45ehxskce462r25t6x7z32q73k4nm57fujbioy",
+        "manifestCid": "bafyreiapgs53vd4cyjfftk3stayw56lri5citzq6kpofpysy4u2wje3lia",
+        "publishedAt": "2026-10-26T16:55:14.538Z"
+      },
+      "places": {
+        "maze": {
+          "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.place/maze",
+          "cid": "bafyreiepngso4mcs7drc3rskwnhu4gktvbjxez5hcdo5o2cl6yhydnqd3q",
+          "tile": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3mys6stpsyc2b",
+          "tileCid": "bafyreibd5ougkwa3qgqy45ehxskce462r25t6x7z32q73k4nm57fujbioy",
+          "updatedAt": "2026-10-26T16:55:17.141Z"
+        }
+      },
+      "signposts": {
+        "maze.obelisk": {
+          "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.signpost/maze.obelisk",
+          "createdAt": "2026-10-26T16:55:17.313Z"
+        }
+      }
+    }
   }
 }
