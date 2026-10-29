@@ -8,6 +8,11 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
+// The accounts tiles are published from (M30, 0.4.0): the maze from pyxorium.com, Winter Forest (and the ways'
+// lexicons) from thunderbird.cafe. A tile without `account` is thunderbird.cafe's.
+export const THUNDERBIRD_DID = 'did:plc:6vxjigxrqizmbo56gojxico3';     // thunderbird.cafe
+export const PYXORIUM_DID = 'did:plc:rqbqpaaluty5v47jwciowpik';        // pyxorium.com
+
 export const TILES = {
   maze: {
     name: 'Escher maze',
@@ -15,7 +20,14 @@ export const TILES = {
     sizing: { width: 640, height: 480 },
     folder: 'tile',
     files: ['index.html', 'maze.css', 'maze.js', 'ways.json'],
-    ways: true,                                   // has /ways.json: publish.mjs also writes its place and signpost
+    ways: true,                                   // has /ways.json: publish.mjs also writes its place and signposts
+    account: PYXORIUM_DID,                        // since 0.4.0 (M30); 0.3.0 was thunderbird.cafe's
+    // Signposts set up when first published (M33): the obelisk leads to Winter Forest's lamp post, as the live one
+    // on thunderbird.cafe did; the second door starts empty. A signpost that already exists is never touched.
+    signposts: {
+      obelisk: [{ place: `at://${THUNDERBIRD_DID}/cafe.thunderbird.way.place/winter-forest`, entrance: 'lamppost' }],
+    },
+    exitNames: { 'second-door': 'second door' },  // for the way pages' wording (copy-to-site.mjs)
   },
 };
 // Card pictures, drawn from the 3D rooms by dev/card-art.html.
@@ -23,7 +35,6 @@ export const CARD_FILES = ['icon.png', 'banner.png'];
 
 // Winter Forest (claude/winter-forest-plan.md, W1 to W38; claude/winter-forest-step3-plan.md, W42 to W45). Published
 // on its own with publish.mjs --forest, so publishing it never touches the maze (M26).
-const ACCOUNT_DID = 'did:plc:6vxjigxrqizmbo56gojxico3';
 export const FOREST_TILES = {
   'winter-forest': {
     name: 'Winter Forest',
@@ -39,9 +50,9 @@ export const FOREST_TILES = {
     generator: 'Winter Forest',
     ways: true,
     // Signposts set up when first published (W20): the slide leads back to the maze's obelisk; the others start empty.
-    // A signpost that already exists is never touched.
+    // A signpost that already exists is never touched (the live slide is pointed at pyxorium.com's maze by hand, M36).
     signposts: {
-      slide: [{ place: `at://${ACCOUNT_DID}/cafe.thunderbird.way.place/maze`, entrance: 'obelisk' }],
+      slide: [{ place: `at://${PYXORIUM_DID}/cafe.thunderbird.way.place/maze`, entrance: 'obelisk' }],
     },
   },
 };

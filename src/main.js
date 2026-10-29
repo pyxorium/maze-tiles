@@ -6,11 +6,14 @@
 // the camera's room is the one drawn in full, and it changes only when the camera itself passes through an
 // opening. The hole in the Well room is a real fall into the Cellar. Free walking by default; step and turn in
 // the gear menu. The map card fills in as you go. Nothing is saved: a reload starts again in the Courtyard.
+// 0.4.0 (claude/escher-maze-04-plan.md): the Lantern room's door is a second way out and in (M28, M31 to M33), the
+// obelisk a block shorter (M29), and the maze has sound (M34, src/sound.js).
 
 import * as THREE from 'three';
 import { MAP } from './map.js';
 import { createNav, splitTo, wayOf } from './graph.js';
-import { buildFigure, srgb, WAYSTONE_TIPS } from './world.js';
+import { buildFigure, srgb, WAYSTONE_TIPS, DOOR_PORTALS, DOOR_OPEN, DOOR_AJAR } from './world.js';
+import { createSound } from './sound.js';
 import { joinWays, exitOf } from './ways.js';
 import { createView } from './view.js';
 import {
@@ -94,6 +97,50 @@ const controls = createControls({
   onKey: (k) => ui.key(k),
 });
 
+// ---- sound (M34) ---------------------------------------------------------------------------------------------------
+// On by default, starting with the first key, click or tap (browsers allow sound only then); the bar's button turns it
+// off and on. Not remembered: the maze saves nothing.
+const sound = createSound();
+const soundBtn = document.getElementById('soundbtn');
+function showSound() { soundBtn.textContent = sound.on ? 'Sound on' : 'Sound off'; soundBtn.setAttribute('aria-pressed', String(sound.on)); }
+soundBtn.addEventListener('click', () => { sound.setOn(!sound.on); sound.start(); showSound(); soundBtn.blur(); });
+showSound();
+for (const ev of ['keydown', 'pointerdown', 'touchstart']) window.addEventListener(ev, () => sound.start(), { capture: true, passive: true });
+document.addEventListener('visibilitychange', () => { if (document.hidden) sound.pause(); else sound.resume(); });
+const soundArea = (roomId) => (roomId === 'cellar' ? 'dull' : MAP.rooms[roomId].area);
+const isLanding = (roomId) => /^landing\d$/.test(roomId);
+// Footsteps: one every STRIDE blocks walked, by what's underfoot.
+const STRIDE = 0.62;
+let strode = 0, stepH = 0;
+function footstep() {
+  const slope = slopesCache.get(fig.room).get(`${fig.cell[0]},${fig.cell[1]}`);
+  const dh = fig.local[2] - stepH;
+  stepH = fig.local[2];
+  sound.step(slope ? 'ramp' : Math.abs(dh) > 0.05 ? 'steps' : 'stone', Math.sign(Math.round(dh * 20)));
+}
+// The sources in each room: its waystones and door portals, where they stand in the room's own coordinates.
+const SOURCES = new Map(ROOM_IDS.map((id) => {
+  const R = MAP.rooms[id];
+  const marks = (R.marks || []).filter((m) => m.waystone).map((m) => ({ exit: m.waystone.exit, kind: 'obelisk', at: [m.at[0] + 0.5, m.at[1] + 0.5] }));
+  const doors = R.ways.filter((w) => w.portal).map((w) => ({ exit: w.portal.exit, kind: 'door', at: w.side === 'ne' ? [w.at + 0.5, 0] : [0, w.at + 0.5] }));
+  return [id, [...marks, ...doors]];
+}));
+let climbRoom = null, climbZ = 0;
+function updateSound() {
+  let climb = null;
+  if (isLanding(fig.room)) {
+    climb = climbRoom === fig.room ? fig.local[2] - climbZ : 0;
+    // Going through to the next landing the height starts again from that room's floor: no jump in the tone.
+    if (Math.abs(climb) > 0.6) climb = 0;
+  }
+  climbRoom = fig.room; climbZ = fig.local[2];
+  const src = (kind) => {
+    const s = SOURCES.get(fig.room).find((x) => x.kind === kind);
+    return s ? { dist: Math.hypot(s.at[0] - fig.local[0], s.at[1] - fig.local[1]), open: ways.state(s.exit) === 'open' } : null;
+  };
+  sound.update({ area: soundArea(fig.room), climb, obelisk: src('obelisk'), door: src('door') });
+}
+
 // ---- moving -------------------------------------------------------------------------------------------------------
 const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 function tween(ms, f, curve = ease) {
@@ -174,18 +221,25 @@ async function command(c) {
       else if (r.kind === 'move') {
         await walkTo([r.to[0] + 0.5, r.to[1] + 0.5, r.h], params.stepTime * 1000);
         fig.cell = r.to; fig.h = r.h;
+        footstep();
       } else if (r.kind === 'fall') {
         busy = false;
         await fall(r.drop);
         return;
       } else {
         const g = r.gate;
-        if (!passable(g)) { ui.note(wayNote(g.way)); await bump(sign); return; }
+        if (!passable(g)) {
+          if (g.way.portal && sign > 0) touchExit(g.way.portal.exit, g.way);
+          else ui.note(wayNote(g.way));
+          await bump(sign);
+          return;
+        }
         const p = portalOf(fig.room, g.way.id);
         const gB = gatesCache.get(p.toRoom).find((x) => x.way.id === p.toWay);
         await walkTo([g.O[0] + 0.5, g.O[1] + 0.5, g.hO], params.stepTime * 1000);
         await enter(g, [gB.L[0] + 0.5, gB.L[1] + 0.5, gB.hL]);
         fig.cell = [...gB.L]; fig.h = gB.hL;
+        footstep();
       }
     }
   } finally {
@@ -194,19 +248,54 @@ async function command(c) {
   }
 }
 
-// The waystone (M9, M17 to M24): the Great Hall's obelisk, the maze's one way out and one way in. Only a host can
-// say whether it leads anywhere (src/ways.js): open, it glows and stepping in tells the host you left by it;
-// dormant, it says so; no host at all (a plain viewer), it offers its fallback address in a new tab (M19, M22).
+// The ways out and in (M9, M17 to M24; the second door M28, M31 to M33): the Great Hall's obelisk and the Lantern
+// room's door. Only a host can say whether one leads anywhere (src/ways.js): open, the obelisk glows and the door
+// stands ajar, and stepping in (or pushing the door) tells the host you left by it; dormant, it says so (the door its
+// own note, "This door is closed, for now."); no host at all (a plain viewer), it offers its fallback address in a
+// new tab (M19, M22).
 const ways = joinWays({ onStatus: () => paintTips(performance.now()), onArrive: (id) => arrive(id) });
 let waystoneAt = 0;
-function touchMark(m) {
+function touchMark(m) { touchExit(m.waystone.exit); }
+// door: the closed door's way when the exit is a door portal (otherwise an obelisk).
+function touchExit(exit, door = null) {
   if (performance.now() - waystoneAt < 2500) return;
   waystoneAt = performance.now();
-  const exit = m.waystone.exit;
   const st = ways.state(exit);
-  if (st === 'open') { if (ways.leave(exit, fig.facing)) ui.note('On your way…'); }
-  else if (st === 'dormant') ui.note("This doesn't lead anywhere yet.");
+  if (st === 'open') {
+    if (!door) { if (ways.leave(exit, fig.facing)) ui.note('On your way…'); return; }
+    // The door swings wide open, then you're on your way.
+    const a = doorAnim(exit);
+    if (a.leaving) return;
+    a.leaving = true;
+    sound.creak();
+    ui.note('On your way…');
+    setTimeout(() => { if (!ways.leave(exit, fig.facing)) a.leaving = false; }, reduceMotion ? 0 : 520);
+  } else if (st === 'dormant') ui.note(door ? wayNote(door) : "This doesn't lead anywhere yet.");
   else ui.offer("I can't take you anywhere from here.", 'Open where this leads', exitOf(exit).fallback);
+}
+// The doors' swing: shut (dormant, or no host), ajar (it leads somewhere), wide open (someone leaving or arriving).
+const doors = new Map();
+function doorAnim(exit) {
+  if (!doors.has(exit)) doors.set(exit, { angle: 0, leaving: false, arriving: false, closing: false });
+  return doors.get(exit);
+}
+function paintDoors(dt) {
+  const exits = new Set(DOOR_PORTALS.map((d) => d.exit));
+  for (const exit of exits) {
+    const a = doorAnim(exit), open = ways.state(exit) === 'open';
+    const target = a.leaving || a.arriving ? DOOR_OPEN : open ? DOOR_AJAR : 0;
+    const before = a.angle;
+    a.angle = reduceMotion ? target : a.angle + (target - a.angle) * Math.min(1, dt * (target < a.angle ? 5 : 3.2));
+    if (Math.abs(a.angle - target) < 0.004) a.angle = target;
+    // Swinging shut after someone came in: a thud as it meets the frame (or settles ajar).
+    if (a.closing && a.angle <= target + 0.03 && before > target + 0.03) { a.closing = false; sound.thud(); }
+    if (a.closing && reduceMotion) { a.closing = false; sound.thud(); }
+    for (const d of DOOR_PORTALS) {
+      if (d.exit !== exit) continue;
+      d.leaf.rotation.y = d.base + d.swing * a.angle;
+      d.glow.visible = open || a.leaving || a.arriving;
+    }
+  }
 }
 function touchWaystone(cell, facing, sign = 1) {
   const d = DIRS[facing];
@@ -237,12 +326,16 @@ function paintTips(now) {
     t.material.color.copy(srgb(t.bright.map((v) => v + (255 - v) * k)));
   }
 }
-// Someone arriving from another tile (way.arrive): beside the obelisk, facing down the hall (M18). A quick fade,
-// as "Back to the start"; the map card notes the Great Hall as found.
+// Someone arriving from another tile (way.arrive): beside the obelisk, facing down the hall (M18), or through the
+// Lantern room's door, a block in front of it, facing into the room (M32), the door wide open behind and swinging shut
+// after (with a thud). A quick fade, as "Back to the start"; the map card notes the room as found.
+const ARRIVE_NOTE = { obelisk: 'You arrive by the obelisk.', 'second-door': 'You come in through the door.' };
 async function arrive(id) {
   const roomId = Object.keys(MAP.rooms).find((r) => (MAP.rooms[r].entrances || []).some((e) => e.id === id));
   if (!roomId || falling) return;
   const e = MAP.rooms[roomId].entrances.find((x) => x.id === id);
+  const door = MAP.rooms[roomId].ways.find((w) => w.portal && w.portal.exit === id);
+  if (door) { const a = doorAnim(id); a.arriving = true; a.angle = DOOR_OPEN; a.leaving = false; }
   fading = true;
   await fade(1);
   Object.assign(fig, { room: roomId, cell: [...e.at], facing: e.facing, yaw: yawOf(e.facing), place: IDENTITY, support: undefined });
@@ -253,7 +346,9 @@ async function arrive(id) {
   ui.setRoom(MAP.rooms[roomId].name);
   await fade(0);
   fading = false;
-  ui.note('You arrive by the obelisk.');
+  stepH = fig.local[2];
+  ui.note(ARRIVE_NOTE[id] || 'You arrive.');
+  if (door) setTimeout(() => { const a = doorAnim(id); a.arriving = false; a.closing = true; }, reduceMotion ? 200 : 900);
 }
 
 // Free walking (M8): hold to walk, turn smoothly; the thumb joystick on phones (M15).
@@ -286,12 +381,16 @@ function updateFree(dt) {
   }
   if (!move[0] && !move[1]) { settleHeight(dt); return; }
   const r = freeMove(fig.local, move, { heights: heightsCache.get(fig.room), gates, drops: dropsCache.get(fig.room), passable });
+  const moved = Math.hypot(r.pos[0] - fig.local[0], r.pos[1] - fig.local[1]);
   fig.local = [r.pos[0], r.pos[1], fig.local[2]];
   fig.cell = cellOf(r.pos[0], r.pos[1]);
   fig.support = r.support;
   fig.facing = facingOfYaw(fig.yaw);
   touchWaystoneFree(fwd);
-  if (r.bumped && performance.now() - bumpNoteAt > 2500) { bumpNoteAt = performance.now(); ui.note(wayNote(r.bumped.way)); }
+  if (r.bumped && r.bumped.way.portal && fwd > 0) touchExit(r.bumped.way.portal.exit, r.bumped.way);
+  else if (r.bumped && performance.now() - bumpNoteAt > 2500) { bumpNoteAt = performance.now(); ui.note(wayNote(r.bumped.way)); }
+  strode += moved;
+  if (strode > STRIDE) { strode -= STRIDE; footstep(); }
   if (r.fell) { fall(r.fell); return; }
   if (r.crossed) {
     const p = portalOf(fig.room, r.crossed.way.id);
@@ -323,8 +422,10 @@ async function fall(drop) {
   if (reduceMotion) {
     fading = true;
     await fade(1);
+    sound.rush();
     Object.assign(fig, { room: p.toRoom, local: arrive, cell: [...landing.at], h: 0, support: undefined, place: IDENTITY });
     view = p.toRoom; chain = []; cam.ready = false;
+    sound.thump();
     await fade(0);
     fading = false;
   } else {
@@ -338,6 +439,7 @@ async function fall(drop) {
     falling.phase = 'over';
     await tween(240, () => {});
     falling.phase = 'fall';
+    sound.rush();
     const g = 2 * FALL / (1.0 * 1.0);            // a second's fall
     let entered = false;
     // Turning as you fall, to face the way the landing spot looks (the long way, not into a wall).
@@ -358,6 +460,7 @@ async function fall(drop) {
     }, (x) => x);
     fig.local = [...arrive];
     falling.phase = 'land';
+    sound.thump();
     await tween(220, (_, tt) => { fig.local[2] = -0.16 * Math.sin(Math.PI * tt); }, (x) => x);
     fig.local[2] = 0;
   }
@@ -519,7 +622,8 @@ function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   paintTips(now);
-  if (!paused) render(dt);
+  paintDoors(dt);
+  if (!paused) { render(dt); updateSound(); }
   requestAnimationFrame(frame);
 }
 
@@ -561,7 +665,8 @@ function restart() {
 // For the browser check and the card pictures (test/browser/check.mjs, dev/card-art.html) only; nothing on the page
 // calls these.
 window.__maze = {
-  state: () => ({ room: fig.room, view, chain: chain.length, cell: [...fig.cell], h: fig.h, local: [...fig.local], yaw: fig.yaw, facing: fig.facing, busy, fading, falling: falling && falling.phase, movement: params.movement, reduceMotion, visited: [...nav.state.visited], fell: nav.state.fell, drawn: lastDrawn, camera: fromV3(cam.pos), ways: ways.mode, obelisk: ways.state('obelisk'), tip: WAYSTONE_TIPS.map((t) => t.material.color.getHexString()), recovered }),
+  state: () => ({ room: fig.room, view, chain: chain.length, cell: [...fig.cell], h: fig.h, local: [...fig.local], yaw: fig.yaw, facing: fig.facing, busy, fading, falling: falling && falling.phase, movement: params.movement, reduceMotion, visited: [...nav.state.visited], fell: nav.state.fell, drawn: lastDrawn, camera: fromV3(cam.pos), ways: ways.mode, obelisk: ways.state('obelisk'), tip: WAYSTONE_TIPS.map((t) => t.material.color.getHexString()), recovered,
+    door: ways.state('second-door'), doorAngle: doorAnim('second-door').angle, doorGlow: DOOR_PORTALS.some((d) => d.glow.visible), sound: sound.state() }),
   jump(roomId, at, facingOrYaw) {
     const yaw = typeof facingOrYaw === 'number' ? facingOrYaw : yawOf(facingOrYaw || 'ne');
     const h = heightsCache.get(roomId).get(`${Math.floor(at[0])},${Math.floor(at[1])}`) ?? 0;

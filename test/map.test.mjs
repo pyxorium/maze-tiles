@@ -79,10 +79,12 @@ test('the Lookout\'s stairs go down into the loop', () => {
   assert.equal(splitTo(w.to)[0], 'landing3');
 });
 
-test('the Lantern room\'s door is still closed (step 2 opens it)', () => {
+test('the Lantern room\'s door stays closed inside the maze: it leads out, as the second door (M28)', () => {
   const door = wayOf(MAP.rooms.lantern, 'door');
   assert.equal(door.closed, true);
-  assert.equal(createNav(MAP).target('door'), null);
+  assert.equal(door.note, 'This door is closed, for now.');
+  assert.deepEqual(door.portal, { exit: 'second-door' });
+  assert.equal(createNav(MAP).target('door'), null, 'no room of the maze behind it');
 });
 
 test('the trail (kept by the rules, though the 3D maze has no Back button: M14) holds at most 8 rooms', () => {
@@ -158,7 +160,7 @@ test('M16: the Well room is 5 x 5 with room to walk round its hole; the Lookout 
   assert.equal(clearAhead('lookout', 'down'), 5);
 });
 
-test('M9, M17: the Great Hall\'s obelisk is the maze\'s one waystone, exit "obelisk"', () => {
+test('M9, M17: the Great Hall\'s obelisk is the maze\'s one waystone, exit "obelisk" (the second door is a door, M28)', () => {
   const stones = Object.values(MAP.rooms).flatMap((r) => (r.marks || []).filter((m) => m.waystone));
   assert.equal(stones.length, 1);
   const ob = MAP.rooms.hall.marks.find((m) => m.kind === 'obelisk');

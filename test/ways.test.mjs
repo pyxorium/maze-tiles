@@ -6,21 +6,23 @@ import { readFileSync } from 'node:fs';
 import { MAP } from '../src/map.js';
 import { heightsOf, DIRS } from '../src/walk.js';
 import { WAYS, joinWays, UP, DOWN, PLAIN_AFTER_MS } from '../src/ways.js';
-import { ACCOUNT, PLACE, SIGNPOST } from '../scripts/publish.mjs';
+import { PYXORIUM_DID, PLACE, SIGNPOST } from '../scripts/publish.mjs';
+const ACCOUNT = PYXORIUM_DID;                      // the maze's account since 0.4.0 (M30)
 
 const RKEY = /^[A-Za-z0-9._:~-]{1,512}$/;          // atproto record keys
 const ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;             // our tile and exit ids (M19)
 
-test('ways.json: the maze, its place, one exit with its signpost and fallback, one entrance (M17 to M21)', () => {
+test('ways.json: the maze on pyxorium.com, its place, two exits with signposts and fallbacks, two entrances (M17 to M21, M28, M30)', () => {
   assert.equal(WAYS.v, 1);
   assert.equal(WAYS.tile, 'maze');
   assert.equal(WAYS.place, `at://${ACCOUNT}/${PLACE}/maze`);
-  assert.equal(WAYS.exits.length, 1, 'the obelisk is the only way out (M17)');
-  const [ex] = WAYS.exits;
-  assert.equal(ex.id, 'obelisk');
+  assert.deepEqual(WAYS.exits.map((e) => e.id), ['obelisk', 'second-door'], 'the obelisk and the Lantern room\'s door');
+  const [ex, door] = WAYS.exits;
   assert.equal(ex.signpost, `at://${ACCOUNT}/${SIGNPOST}/maze.obelisk`, 'names match (M20)');
   assert.equal(ex.fallback, 'https://thunderbird.cafe/way/maze/obelisk');
-  assert.deepEqual(WAYS.entrances, [{ id: 'obelisk' }], 'travellers arrive at the obelisk (M18)');
+  assert.equal(door.signpost, `at://${ACCOUNT}/${SIGNPOST}/maze.second-door`);
+  assert.equal(door.fallback, 'https://thunderbird.cafe/way/maze/second-door', 'the way pages stay on thunderbird.cafe');
+  assert.deepEqual(WAYS.entrances, [{ id: 'obelisk' }, { id: 'second-door' }], 'travellers arrive at the obelisk (M18) or through the door (M32)');
   // The shapes, for every exit: /way/<tile id>/<exit id>, the signpost named <tile id>.<exit id>.
   for (const e of WAYS.exits) {
     assert.match(WAYS.tile, ID); assert.match(e.id, ID);
@@ -31,9 +33,10 @@ test('ways.json: the maze, its place, one exit with its signpost and fallback, o
   assert.match(WAYS.place.split('/').pop(), RKEY);
 });
 
-test('ways.json and the map agree: every exit is a waystone, every entrance a spot in a room', () => {
+test('ways.json and the map agree: every exit is a waystone or a door portal, every entrance a spot in a room', () => {
   const stones = Object.values(MAP.rooms).flatMap((r) => (r.marks || []).filter((m) => m.waystone).map((m) => m.waystone.exit));
-  assert.deepEqual(stones.sort(), WAYS.exits.map((e) => e.id).sort());
+  const portals = Object.values(MAP.rooms).flatMap((r) => r.ways.filter((w) => w.portal).map((w) => w.portal.exit));
+  assert.deepEqual([...stones, ...portals].sort(), WAYS.exits.map((e) => e.id).sort());
   const entrances = Object.values(MAP.rooms).flatMap((r) => (r.entrances || []).map((e) => e.id));
   assert.deepEqual(entrances.sort(), WAYS.entrances.map((e) => e.id).sort());
 });
@@ -50,6 +53,21 @@ test('the obelisk\'s entrance: on the floor beside it, facing a long clear stret
   assert.ok(n >= 4, `${n} clear blocks ahead`);
   const w = hall.ways.find((x) => x.side === e.facing && x.at === e.at[1]);
   assert.ok(w, 'looking down the hall at a way on (the Cellar\'s stairs)');
+});
+
+test('the second door\'s entrance: a block in front of the Lantern room\'s door, on the floor, facing into the room (M32)', () => {
+  const lantern = MAP.rooms.lantern;
+  const door = lantern.ways.find((w) => w.id === 'door');
+  assert.deepEqual(door.portal, { exit: 'second-door' });
+  assert.equal(door.closed, true, 'still a closed door: you can\'t walk through it, only leave by it');
+  assert.equal(door.side, 'ne');
+  const e = lantern.entrances.find((x) => x.id === 'second-door');
+  assert.deepEqual(e.at, [door.at, 1], 'a block in front of it (row 0 is against the wall)');
+  assert.equal(e.facing, 'sw', 'facing away from the door, into the room');
+  const h = heightsOf(lantern);
+  assert.equal(h.get(`${e.at[0]},${e.at[1]}`), 0, 'on the floor');
+  const [x, y] = [e.at[0] + DIRS[e.facing][0], e.at[1] + DIRS[e.facing][1]];
+  assert.equal(h.get(`${x},${y}`), 0, 'room to walk on ahead');
 });
 
 test('the lexicons: the place and the signpost, as M24 says', () => {

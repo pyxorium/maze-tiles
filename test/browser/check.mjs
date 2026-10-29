@@ -7,7 +7,9 @@
 // Then the map card, the gear menu (back to the start, the map kept), step and turn (routes planned with the
 // maze's own rules: the loop, the stairs down, the fall), the keyboard, "reduce motion", and a phone: the thumb
 // joystick, dragging to turn, the arrow buttons. Then ways with a stand-in host (dev/host.html): hello, the obelisk
-// open, dormant or no host, arriving at the obelisk, way.leave. Then M27: up each flight of the Penrose loop pressed into
+// open, dormant or no host, arriving at the obelisk, way.leave; the Lantern room's door as the second door (0.4.0, M28 to
+// M33: ajar and glowing when open, swinging open as you leave by it, arriving through it, dormant and plain); the
+// shorter obelisk (M29); the Sound button (M34). Then M27: up each flight of the Penrose loop pressed into
 // the right wall, the view follows you over the top. WebGL runs in software here (SwiftShader), about 8 frames a second.
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
@@ -50,6 +52,8 @@ const noteText = (page) => page.evaluate(() => { const n = document.getElementBy
 // Watch the state every frame from now on (to see what happened during a move).
 const watch = (page) => page.evaluate(() => { window.__seen = []; const f = () => { window.__seen.push(window.__maze.state()); if (window.__seen.length < 3000) requestAnimationFrame(f); }; requestAnimationFrame(f); });
 const seen = (page) => page.evaluate(() => window.__seen);
+// Wait (up to ms) until fn() is true; software graphics with several pages open can be very slow.
+const until = async (fn, ms = 20000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return true; await new Promise((r) => setTimeout(r, 150)); } return false; };
 
 // ---- free walking, as a player: turn by dragging across the view, then hold ↑ to each point --------------------
 async function face(page, [x, y]) {
@@ -136,6 +140,8 @@ try {
   ok(/connect-src 'self'/.test(page.csp) && /script-src 'self'/.test(page.csp), 'served with the tile\'s security policy');
   ok(s.drawn >= 5, `openings show their rooms two deep (${s.drawn} rooms drawn at the start)`);
   ok(await page.isVisible('#hint'), 'a first hint about the keys');
+  ok((await page.textContent('#soundbtn')) === 'Sound on' && (await page.getAttribute('#soundbtn', 'aria-pressed')) === 'true', 'the bar has a Sound button, on (M34)');
+  ok(s.sound && s.sound.on && !s.sound.started, 'no sound until you do something (browsers ask for that)');
   await shot(page, '01-start');
 
   // Up the Courtyard's stairs into Landing I: no cut (no fade), the camera follows through.
@@ -147,6 +153,7 @@ try {
   let log = await seen(page);
   s = await st(page);
   ok(s.room === 'landing1' && s.view === 'landing1', 'up the stairs into Landing I');
+  { const snd = (await st(page)).sound; ok(snd.started && snd.bed === 'slate', `sound started with the first key, the landings' room tone playing (${snd.bed}; running ${snd.running})`); }
   ok(!log.some((x) => x.fading) && log.some((x) => x.chain === 1 && x.room === 'landing1' && x.view === 'courtyard'), 'seamless: the figure goes through first, the camera follows, no fade');
   ok(log.some((x) => x.h >= 1.5 && x.room === 'courtyard'), 'climbing the steps on the way');
   ok(!(await page.isVisible('#hint')) || (await page.$eval('#hint', (e) => e.classList.contains('gone'))), 'the hint goes once you move');
@@ -174,8 +181,12 @@ try {
   await face(page, [2.5, -1]);
   await page.keyboard.down('ArrowUp'); await page.waitForTimeout(800); await page.keyboard.up('ArrowUp');
   s = await st(page);
-  ok(s.room === 'lantern' && /closed, for now/.test(await noteText(page)), 'the Lantern room\'s door stays closed and says so');
+  { const od = await offerOf(page);
+    ok(s.room === 'lantern' && od && /can't take you anywhere from here/.test(od.text) && od.href === 'https://thunderbird.cafe/way/maze/second-door',
+      'the Lantern room\'s door, opened on its own (no host): it stays shut and offers the second door\'s fallback (M28)'); }
+  ok(s.doorAngle === 0 && !s.doorGlow, 'no host: the door shut, no glow behind it');
   await shot(page, '03-closed-door');
+  await page.keyboard.press('Escape');
   s = await walk(page, 'lantern', [[2.5, 3.5], [2.5, 5.8]]);
   ok(s.room === 'hall', 'down the ramp into the Great Hall');
   await page.waitForTimeout(600);
@@ -314,7 +325,9 @@ try {
   const order = [await page.evaluate(() => document.activeElement.id)];
   await page.keyboard.press('Tab');
   order.push(await page.evaluate(() => document.activeElement.id));
-  ok(order.join() === 'mapbtn,gearbtn', `Tab reaches the Map and gear buttons (${order.join(', ')})`);
+  await page.keyboard.press('Tab');
+  order.push(await page.evaluate(() => document.activeElement.id));
+  ok(order.join() === 'soundbtn,mapbtn,gearbtn', `Tab reaches the Sound, Map and gear buttons (${order.join(', ')})`);
   await page.keyboard.press('Enter');
   ok(await page.isVisible('#menu') && await page.evaluate(() => document.activeElement.name === 'move'), 'Enter opens the settings, focus on the movement choice');
   await page.keyboard.press('Escape');
@@ -422,6 +435,34 @@ try {
     ok(left.length === 1 && left[0].exit === 'obelisk' && left[0].facing === 'ne' && Object.keys(left[0]).sort().join() === 'exit,facing,kind,v',
       'stepping into an open obelisk: way.leave, the exit and facing only (never who)');
     ok(/On your way/.test(await noteText(f)), '"On your way…"');
+
+    // The second door (M28, M31 to M33): ajar with a glow behind it while it leads somewhere.
+    await f.evaluate(() => window.__maze.jump('lantern', [2.5, 2.9], 'ne'));
+    await hp.waitForTimeout(2500);
+    s = await f.evaluate(() => window.__maze.state());
+    ok(s.door === 'open' && Math.abs(s.doorAngle - 0.22) < 0.02 && s.doorGlow, `an open second door stands ajar, glowing behind (${s.doorAngle.toFixed(2)} rad)`);
+    await shot(hp, '16-door-ajar');
+    await f.evaluate(() => window.__maze.jump('lantern', [2.5, 0.9], 'ne'));
+    await hp.waitForTimeout(400);
+    await f.locator('#stage canvas').click({ position: { x: 5, y: 300 } });
+    await hp.keyboard.down('ArrowUp');
+    await until(async () => (await f.evaluate(() => window.__maze.state())).doorAngle > 1);
+    await hp.keyboard.up('ArrowUp');
+    await until(async () => (await hp.evaluate(() => window.__host.log)).some((p) => p.kind === 'leave' && p.exit === 'second-door'), 5000);
+    s = await f.evaluate(() => window.__maze.state());
+    const leftDoor = (await hp.evaluate(() => window.__host.log)).filter((p) => p.kind === 'leave' && p.exit === 'second-door');
+    ok(leftDoor.length === 1 && leftDoor[0].facing === 'ne' && Object.keys(leftDoor[0]).sort().join() === 'exit,facing,kind,v', 'pushing the open door: it swings open and way.leave says "second-door" (and the facing only)');
+    ok(s.doorAngle > 1 && s.room === 'lantern', `the door wide open as you go (${s.doorAngle.toFixed(2)} rad)`);
+    await shot(hp, '17-door-leaving');
+    await hp.evaluate(() => window.__host.arriveDoor());
+    await until(async () => { const x = await f.evaluate(() => window.__maze.state()); return x.cell.join() === '2,1' && !x.fading; });
+    s = await f.evaluate(() => window.__maze.state());
+    ok(s.room === 'lantern' && s.cell.join() === '2,1' && s.facing === 'sw' && s.visited.includes('lantern'), 'arriving through the door: a block in front of it, facing into the Lantern room (M32)');
+    ok(/come in through the door/.test(await noteText(f)), '"You come in through the door."');
+    await shot(hp, '18-door-arrive');
+    await until(async () => Math.abs((await f.evaluate(() => window.__maze.state())).doorAngle - 0.22) < 0.03);
+    s = await f.evaluate(() => window.__maze.state());
+    ok(Math.abs(s.doorAngle - 0.22) < 0.03, `then it swings back to ajar behind you (${s.doorAngle.toFixed(2)} rad)`);
   }
   {
     const { hp, f } = hosts.dormant;
@@ -433,6 +474,16 @@ try {
     await hp.waitForTimeout(300);
     ok(/doesn't lead anywhere yet/.test(await noteText(f)) && !(await offerOf(f)), 'a dormant obelisk: "This doesn\'t lead anywhere yet." (no offer)');
     ok(!(await hp.evaluate(() => window.__host.log)).some((p) => p.kind === 'leave'), 'and nothing is sent');
+    await f.evaluate(() => window.__maze.jump('lantern', [2.5, 0.9], 'ne'));
+    await hp.waitForTimeout(600);
+    await f.locator('#stage canvas').click({ position: { x: 5, y: 300 } });
+    await hp.keyboard.down('ArrowUp');
+    await until(async () => /closed, for now/.test(await noteText(f)));
+    await hp.keyboard.up('ArrowUp');
+    const s = await f.evaluate(() => window.__maze.state());
+    ok(s.door === 'dormant' && /closed, for now/.test(await noteText(f)) && !(await offerOf(f)) && s.doorAngle === 0 && !s.doorGlow,
+      'a dormant second door: shut, no glow, "This door is closed, for now."');
+    ok(!(await hp.evaluate(() => window.__host.log)).some((p) => p.kind === 'leave'), 'and nothing is sent for the door either');
   }
   {
     const { hp, f } = hosts.plain;

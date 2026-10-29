@@ -1,15 +1,21 @@
 {
   "v": 1,
   "tile": "maze",
-  "place": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.place/maze",
+  "place": "at://did:plc:rqbqpaaluty5v47jwciowpik/cafe.thunderbird.way.place/maze",
   "exits": [
     {
       "id": "obelisk",
-      "signpost": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.signpost/maze.obelisk",
+      "signpost": "at://did:plc:rqbqpaaluty5v47jwciowpik/cafe.thunderbird.way.signpost/maze.obelisk",
       "fallback": "https://thunderbird.cafe/way/maze/obelisk"
+    },
+    {
+      "id": "second-door",
+      "signpost": "at://did:plc:rqbqpaaluty5v47jwciowpik/cafe.thunderbird.way.signpost/maze.second-door",
+      "fallback": "https://thunderbird.cafe/way/maze/second-door"
     }
   ],
   "entrances": [
-    { "id": "obelisk" }
+    { "id": "obelisk" },
+    { "id": "second-door" }
   ]
 }

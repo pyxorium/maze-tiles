@@ -1,5 +1,6 @@
 // COPY of rooms-lab/test/fake-pds.mjs (Oct 25 2026); one addition for the maze (Oct 26): createRecord refuses a
-// key that's already taken, as a real PDS does.
+// key that's already taken, as a real PDS does. And one for 0.4.0 (Oct 29): `pds` gives the stand-in its own address,
+// so the travel check can hold two accounts (pyxorium.com's maze, thunderbird.cafe's forest) on two servers.
 // COPY of daisy-tiles/test/fake-pds.mjs (Oct 23 2026), unchanged below this line.
 // A stand-in for an account's PDS and plc.directory, as a fetch function, for checking publish.mjs.
 // It does what a real one does for these calls: stores blobs under their raw CID (with the type of the
@@ -10,7 +11,7 @@ import { dagCborCid } from '../scripts/lib/dagcbor.js';
 
 export const PDS = 'https://pds.test';
 
-export function createFakePds({ did, handle, password = 'right-password', storedTypes = {} } = {}) {
+export function createFakePds({ did, handle, password = 'right-password', storedTypes = {}, pds = PDS } = {}) {
   const blobs = new Map();          // cid → { bytes, mimeType }
   const records = new Map();        // `${collection}/${rkey}` → { value, cid }
   let n = 0;
@@ -21,9 +22,9 @@ export function createFakePds({ did, handle, password = 'right-password', stored
     const url = new URL(String(input));
     calls.push(`${init.method || 'GET'} ${url.pathname}`);
     if (url.origin === 'https://plc.directory') {
-      return json(200, { id: did, alsoKnownAs: [`at://${handle}`], service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: PDS }] });
+      return json(200, { id: did, alsoKnownAs: [`at://${handle}`], service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: pds }] });
     }
-    if (url.origin !== PDS) return json(404, { error: 'NotFound' });
+    if (url.origin !== pds) return json(404, { error: 'NotFound' });
     const nsid = url.pathname.replace('/xrpc/', '');
     const authed = (init.headers || {}).Authorization === 'Bearer fake-jwt';
     switch (nsid) {

@@ -1,12 +1,14 @@
 // A browser check of the travel page (site/travel.js; claude/winter-forest-step3-plan.md) through the real tile loader:
 // the page bundled as Astro would (way-main.js with @dasl/tile-loader from the site), under its security policy, on
 // 127.0.0.1; a replica of the tile loading server (loader-replica.mjs) with the loader's own files; and stand-ins for
-// plc.directory and thunderbird.cafe's server (test/fake-pds.mjs) holding the maze and Winter Forest as publish.mjs
-// writes them (the real tile files, places and signposts). Then the trip, played as a traveller would:
+// plc.directory and two servers (test/fake-pds.mjs): pyxorium.com's holding the maze and thunderbird.cafe's holding
+// Winter Forest (0.4.0, M30), as publish.mjs writes them (the real tile files, places and signposts). Then the trip,
+// played as a traveller would:
 //   the page with an empty obelisk ("This doesn't lead anywhere yet."); with a test signpost (?sign=, W41): "Step
 //   through" (W40), the forest at the lamp post, the bar, the title; down the slide to the maze at its obelisk, the
 //   address following (W39); the bar's Back, the browser's Back and Forward; the obelisk back to the forest; a reload
-//   replaying the last leg; a blocked way; "Pick a door" and "Stay here"; the phone's tucked bar; no errors.
+//   replaying the last leg; a blocked way; "Pick a door" and "Stay here"; the phone's tucked bar; the second door
+//   (0.4.0): out through the Lantern room's door to the forest's arch and back in through it; no errors.
 // Run in the build chat:
 //   node test/browser/check_travel.mjs <the site's node_modules> <the loader's public folder> [folder for screenshots]
 // e.g. node test/browser/check_travel.mjs ..\pyxorium.github.io\node_modules ..\tiles-loading-server\public
@@ -18,7 +20,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createFakePds } from '../fake-pds.mjs';
-import { runPublish, ACCOUNT, SIGNPOST } from '../../scripts/publish.mjs';
+import { runPublish, ACCOUNT, PYXORIUM_DID, SIGNPOST } from '../../scripts/publish.mjs';
 import { TILES, FOREST_TILES } from '../../scripts/tiles.mjs';
 import { wayPages, generatedPages } from '../../scripts/copy-to-site.mjs';
 import { pageCsp } from '../../site/page-csp.js';
@@ -36,15 +38,21 @@ if (OUT) mkdirSync(OUT, { recursive: true });
 let failures = 0;
 const ok = (cond, msg) => { console.log(`${cond ? 'ok  ' : 'FAIL'} ${msg}`); if (!cond) failures++; };
 
-// ---- the world: thunderbird.cafe's server with the maze and the forest published, as publish.mjs does ----------------
-const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+// ---- the world: pyxorium.com's server with the maze, thunderbird.cafe's with the forest, as publish.mjs does ----------
+const cafe = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe', pds: 'https://cafe.pds.test' });
+const pyx = createFakePds({ did: PYXORIUM_DID, handle: 'pyxorium.com', pds: 'https://pyx.pds.test' });
+const SERVERS = { [ACCOUNT]: cafe, [PYXORIUM_DID]: pyx, 'https://cafe.pds.test': cafe, 'https://pyx.pds.test': pyx };
 let published = {};
-const quiet = { fetchImpl: pds.fetchImpl, log: () => {}, ask: async () => 'y', askHidden: async () => 'right-password', checkBundle: async () => true,
+const quiet = { log: () => {}, ask: async () => 'y', askHidden: async () => 'right-password', checkBundle: async () => true,
   readPublished: () => published, writePublished: (o) => { published = o; } };
-await runPublish({ ...quiet });
-await runPublish({ ...quiet, tiles: FOREST_TILES });
-ok(pds.records.get(`${SIGNPOST}/maze.obelisk`).value.to.length === 0 && pds.records.get(`${SIGNPOST}/winter-forest.slide`).value.to.length === 1,
-  'the stand-in server: the maze and the forest published, the obelisk empty (as live), the slide leading to the maze');
+await runPublish({ ...quiet, fetchImpl: pyx.fetchImpl });
+await runPublish({ ...quiet, fetchImpl: cafe.fetchImpl, tiles: FOREST_TILES });
+// As live before the trip test (M36): the maze's obelisk already leads to the forest; the second door empty.
+ok(pyx.records.get(`${SIGNPOST}/maze.obelisk`).value.to[0].place === `at://${ACCOUNT}/cafe.thunderbird.way.place/winter-forest` && pyx.records.get(`${SIGNPOST}/maze.second-door`).value.to.length === 0
+  && cafe.records.get(`${SIGNPOST}/winter-forest.slide`).value.to[0].place === `at://${PYXORIUM_DID}/cafe.thunderbird.way.place/maze`,
+  'the stand-ins: the maze on pyxorium.com (the obelisk leading to the forest, the second door empty), the forest on thunderbird.cafe (the slide leading to pyxorium.com\'s maze)');
+// The test runs from the obelisk empty, as the live thunderbird.cafe one was (section 1), then fills it with ?sign=.
+pyx.records.set(`${SIGNPOST}/maze.obelisk`, { value: { $type: SIGNPOST, to: [], updatedAt: 'x' }, cid: 'bafy-empty' });
 
 // ---- the page, built as Astro would ---------------------------------------------------------------------------------
 const loader = await startLoaderReplica({ publicDir: LOADER_PUBLIC, port: 5231 });
@@ -87,9 +95,12 @@ async function newPage(opts = {}) {
   page.on('pageerror', (e) => page.errors.push(e.message));
   // A record that isn't there is a 400 (RecordNotFound), which browsers log; the loader's "form-src" is its own (known).
   page.on('console', (m) => { const t = m.text(); if ((m.type() === 'error' && !/status of 400|form-src/.test(t)) || (/Content.Security.Policy|Refused/.test(t) && !/form-src/.test(t))) page.errors.push(t); });
-  await page.route(/^https:\/\/(plc\.directory|pds\.test)\//, async (route) => {
+  await page.route(/^https:\/\/(plc\.directory|cafe\.pds\.test|pyx\.pds\.test)\//, async (route) => {
     const req = route.request();
-    const res = await pds.fetchImpl(req.url(), { method: req.method() });
+    const u = new URL(req.url());
+    const server = u.origin === 'https://plc.directory' ? SERVERS[decodeURIComponent(u.pathname.slice(1))] : SERVERS[u.origin];
+    if (!server) { route.fulfill({ status: 404, body: '{}' }); return; }
+    const res = await server.fetchImpl(req.url(), { method: req.method() });
     route.fulfill({ status: res.status, body: Buffer.from(await res.arrayBuffer()), headers: { 'content-type': res.headers.get('content-type') || 'application/json', 'access-control-allow-origin': '*' } });
   });
   return page;
@@ -154,7 +165,7 @@ if (run(1)) {
 }
 
 // ---- 2. The loop, with a test signpost for the obelisk (W41) --------------------------------------------------------
-const OBELISK = 'maze.obelisk:winter-forest/lamppost';
+const OBELISK = 'maze.obelisk:winter-forest@thunderbird.cafe/lamppost';     // pyxorium.com's obelisk to thunderbird.cafe's forest
 if (run(2)) {
   const page = await newPage();
   await page.goto(at('/way/maze/obelisk/', [OBELISK]));
@@ -203,6 +214,7 @@ if (run(2)) {
   ok(ms.ways === 'host' && ms.obelisk === 'open', 'the maze is told its obelisk leads somewhere (the test signpost)');
   ok(i.path === '/way/winter-forest/slide/' && i.leg === 1 && (await page.evaluate(() => location.search)).includes('sign='), `the address follows the slide, keeping the test signposts (${i.path})`);
   ok(i.title === 'Escher maze · thunderbird.cafe' && i.back && i.raku, 'the title follows; the bar has Back and "Open in Raku" (an open place)');
+  ok(/by @pyxorium\.com/.test(await page.textContent('.tripbar .where')), 'the bar: the maze is pyxorium.com\'s (the forest\'s slide reaching across accounts)');
   ok(i.frames === 1, 'one tile running (the forest is gone)');
   ok(await (await tileFrame(page, '__maze')).evaluate(() => document.hasFocus()), 'the maze has the keys');
   await shot(page, '04-maze');
@@ -246,7 +258,7 @@ if (run(2)) {
 if (run(3)) {
   const page = await newPage();
   // Arrive under the arch; the arch leads to a place that doesn't exist; the wardrobe to two doors.
-  await page.goto(at('/way/maze/obelisk/', ['maze.obelisk:winter-forest/arch', 'winter-forest.arch:nowhere/arch', 'winter-forest.wardrobe:maze/obelisk,winter-forest/lamppost']));
+  await page.goto(at('/way/maze/obelisk/', ['maze.obelisk:winter-forest@thunderbird.cafe/arch', 'winter-forest.arch:nowhere/arch', 'winter-forest.wardrobe:maze@pyxorium.com/obelisk,winter-forest/lamppost']));
   await page.waitForSelector('.tripscreen .step', { timeout: 30000 });
   await page.click('.tripscreen .step');
   await settled(page);
@@ -282,7 +294,7 @@ if (run(3)) {
 // ---- 4. Several doors at first opening; a phone's tucked bar ----------------------------------------------------
 if (run(4)) {
   const page = await newPage({ viewport: { width: 390, height: 760 }, hasTouch: true, isMobile: true });
-  await page.goto(at('/way/maze/obelisk/', ['maze.obelisk:winter-forest/lamppost,maze/obelisk']));
+  await page.goto(at('/way/maze/obelisk/', ['maze.obelisk:winter-forest@thunderbird.cafe/lamppost,maze/obelisk']));
   await page.waitForSelector('#way .door button.go', { timeout: 30000 });
   ok((await page.locator('#way .door').count()) === 2, 'several at first opening: "Pick a door" on the page');
   const width = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -298,6 +310,39 @@ if (run(4)) {
   await until(async () => (await page.evaluate(() => document.querySelector('.tripbar').getBoundingClientRect().top)) >= -1, 5000);
   ok(await page.evaluate(() => document.querySelector('.tripbar').getBoundingClientRect().top) >= -1, 'tapping the tab brings the bar down');
   await shot(page, '08-phone-bar');
+  ok(page.errors.length === 0, `no errors ${page.errors.join(' | ')}`);
+  await page.close();
+}
+
+// ---- 5. The second door (0.4.0, M28 to M33): its page empty; then out through it to the forest's arch, and the
+// arch back in through it --------------------------------------------------------------------------------------------
+if (run(5)) {
+  const page = await newPage();
+  await page.goto(at('/way/maze/second-door/'));
+  await page.waitForSelector('#way h1', { timeout: 30000 });
+  ok(/doesn't lead anywhere yet/.test(await page.textContent('#way h1')), 'the second door\'s page, its signpost empty: "This doesn\'t lead anywhere yet."');
+  // Start in the maze (the forest's arch leading to it, at the second door), go out by the door, and back.
+  await page.goto(at('/way/winter-forest/arch/', ['winter-forest.arch:maze@pyxorium.com/second-door', 'maze.second-door:winter-forest@thunderbird.cafe/arch']));
+  await page.waitForSelector('.tripscreen .step', { timeout: 30000 });
+  ok(/Escher maze/.test((await info(page)).screenText) && /by @pyxorium\.com/.test((await info(page)).screenText), 'the arch\'s page: "Step through" into pyxorium.com\'s Escher maze');
+  await page.click('.tripscreen .step');
+  await settled(page);
+  const inDoor = (s) => s && s.room === 'lantern' && s.cell.join() === '2,1' && !s.fading;
+  await until(async () => inDoor(await mazeState(page)), 30000);
+  let ms = await mazeState(page);
+  ok(inDoor(ms) && ms.facing === 'sw', `arriving through the second door: the Lantern room, a block in front of it, facing in (${ms && ms.room} ${ms && ms.cell})`);
+  ok(ms.door === 'open' && ms.obelisk === 'dormant', 'the maze is told the second door leads somewhere (the test signpost) and the obelisk not (emptied above, for section 1)');
+  await shot(page, '09-door-arrive');
+  await page.waitForTimeout(2500);
+  const f = await tileFrame(page, '__maze');
+  await f.evaluate(() => window.__maze.jump('lantern', [2.5, 0.9], 'ne'));
+  await page.waitForTimeout(500);
+  await page.keyboard.down('ArrowUp'); await page.waitForTimeout(1000); await page.keyboard.up('ArrowUp');
+  await until(async () => (await info(page)).leg === 1 && !(await info(page)).busy && !(await info(page)).screen, 90000);
+  const fs = await forestState(page), i = await info(page);
+  ok(fs && near(fs, L.ENTRANCES.arch) && i.path === '/way/maze/second-door/', `out through the door: the forest, out from under the arch, the address /way/maze/second-door/ (${i.path})`);
+  ok(i.title === 'Winter Forest · thunderbird.cafe', 'the title follows');
+  await shot(page, '10-door-to-forest');
   ok(page.errors.length === 0, `no errors ${page.errors.join(' | ')}`);
   await page.close();
 }

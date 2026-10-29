@@ -69,6 +69,13 @@ function onWall(geo, side, at, off = 0) {
 export const WAYSTONE_TIPS = [];
 export const dullTip = (area) => area.accent.map((v, i) => v + (area.pillar[i] - v) * 0.62);
 
+// The door portals (M28, M31): a closed door with `portal`, every time its room is built. Its leaf hangs on a hinge
+// at the arch's left side; main.js turns it (`leaf.rotation.y = base + swing * angle`, 0 shut) and shows the glow
+// behind it while its signpost says the way leads somewhere.
+export const DOOR_PORTALS = [];
+export const DOOR_OPEN = 1.35;          // radians: wide open, as someone steps through
+export const DOOR_AJAR = 0.22;          // radians: ajar, a way that leads somewhere
+
 export const opensOf = (room) => new Set(room.ways.filter((w) => w.to && !w.closed).map((w) => w.id));
 
 export function buildRoom(map, id, { open = opensOf(map.rooms[id]) } = {}) {
@@ -94,7 +101,7 @@ export function buildRoom(map, id, { open = opensOf(map.rooms[id]) } = {}) {
   // Walls: a row along the ne side, a column along the nw side, and their corner.
   const wallCell = new Map();          // `${side}:${at}` → what's there
   for (const { w, g, open: isOpen } of ways) {
-    if (g.door) wallCell.set(`${w.side}:${w.at}`, { door: true, open: isOpen, closed: w.closed });
+    if (g.door) wallCell.set(`${w.side}:${w.at}`, { door: true, open: isOpen, closed: w.closed, portal: w.portal });
     if (g.gap) wallCell.set(`${w.side}:${w.at}`, { gap: true });
     if (g.notch) wallCell.set(`${w.side}:${w.at}`, isOpen ? { gap: true } : { notch: g.notch.h });
   }
@@ -112,7 +119,30 @@ export function buildRoom(map, id, { open = opensOf(map.rooms[id]) } = {}) {
     geo.translate(0, 0, -1);                 // the extrusion runs back from the face (y = 0) into the wall
     add(onWall(geo, side, at), area.wall);
     if (c.open) add(boxGeo(x, y, -SLAB, 1, 1, SLAB), area.floor);   // a floor through the doorway
-    if (!c.open) {
+    if (!c.open && c.portal) {
+      // A door portal (M28): the accent edge becomes a frame around the doorway, the leaf hangs on a hinge at its
+      // left side so it can swing back into the wall, and behind it the doorway glows in the accent colour (shown
+      // only while the way leads somewhere).
+      const ring = archShape(0.18, 0.82, 1.25);
+      ring.holes.push(archShape(0.26, 0.74, 1.25));
+      const frame = new THREE.ShapeGeometry(ring, 10);
+      onWall(frame, side, at, -0.32);
+      extra.push(new THREE.Mesh(frame, new THREE.MeshBasicMaterial({ color: srgb(area.accent, 0.9) })));
+      const glowGeo = new THREE.ShapeGeometry(archShape(0.2, 0.8, 1.25), 10);
+      onWall(glowGeo, side, at, -0.95);
+      const glow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({ color: srgb(area.accent.map((v) => v + (255 - v) * 0.35)) }));
+      glow.visible = false;
+      extra.push(glow);
+      const leafGeo = new THREE.ShapeGeometry(archShape(0, 0.48, 1.25), 10);
+      const leaf = new THREE.Mesh(leafGeo, new THREE.MeshBasicMaterial({ color: srgb(area.feature, 0.8), side: THREE.DoubleSide }));
+      // The hinge: u = 0.26 across the doorway, 0.3 back from the face. Swinging away from the room is +y on the ne
+      // wall (the free edge goes to -z) and -y on the nw wall (to -x).
+      const base = side === 'ne' ? 0 : -Math.PI / 2;
+      if (side === 'ne') leaf.position.set(at + 0.26, 0, -0.3); else leaf.position.set(-0.3, 0, at + 0.26);
+      leaf.rotation.y = base;
+      extra.push(leaf);
+      DOOR_PORTALS.push({ exit: c.portal.exit, room: id, leaf, glow, base, swing: side === 'ne' ? 1 : -1 });
+    } else if (!c.open) {
       // A closed door: a door leaf in the area's feature colour, set back in the doorway, with an accent edge.
       const edge = new THREE.ShapeGeometry(archShape(0.18, 0.82, 1.25), 10);
       onWall(edge, side, at, -0.32);
@@ -169,8 +199,9 @@ export function buildRoom(map, id, { open = opensOf(map.rooms[id]) } = {}) {
     } else if (m.kind === 'obelisk') {
       // A waystone (M9) glows when it leads somewhere; dormant, its tip is a dull version of the accent.
       const [x, y] = m.at;
-      add(boxGeo(x + 0.15, y + 0.15, 0, 0.7, 0.7, 3.4), area.pillar);
-      const c = new THREE.ConeGeometry(0.5, 0.9, 4); c.rotateY(Math.PI / 4); c.translate(x + 0.5, 3.85, y + 0.5);
+      // A block shorter than it was (M29, 0.4.0): the shaft 2.4 high (from 3.4), the tip on top as before.
+      add(boxGeo(x + 0.15, y + 0.15, 0, 0.7, 0.7, 2.4), area.pillar);
+      const c = new THREE.ConeGeometry(0.5, 0.9, 4); c.rotateY(Math.PI / 4); c.translate(x + 0.5, 2.85, y + 0.5);
       if (m.waystone) {
         // Its tip has a material of its own, so the maze can light it when a host says it leads somewhere (M22).
         const tipMat = new THREE.MeshBasicMaterial({ vertexColors: true, color: srgb(dullTip(area)) });

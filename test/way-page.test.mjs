@@ -94,6 +94,17 @@ test('test signposts (W41): on this computer only, from the address', () => {
   assert.equal(testSignposts({ hostname: 'thunderbird.cafe', search: here.search }).size, 0, 'the live site ignores it');
 });
 
+test('test signposts naming a place on another account (0.4.0): @handle or @did', async () => {
+  const PYX = 'did:plc:rqbqpaaluty5v47jwciowpik';
+  const o = testSignposts({ hostname: '127.0.0.1', search: `?sign=${encodeURIComponent(`winter-forest.slide:maze@pyxorium.com/obelisk`)}&sign=${encodeURIComponent(`maze.second-door:winter-forest@${ACCOUNT}/arch,x@nobody.example/y`)}` });
+  assert.deepEqual(o.get('winter-forest.slide'), [{ placeName: 'maze', did: PYX, entrance: 'obelisk' }]);
+  assert.deepEqual(o.get('maze.second-door'), [{ placeName: 'winter-forest', did: ACCOUNT, entrance: 'arch' }], 'an account it doesn\'t know by handle is dropped');
+  const w = world();
+  w.put(PLACE, 'maze', { $type: PLACE, tile: `at://${PYX}/ing.dasl.masl/hubtile`, cid: 'bafy-hub-v1', name: 'Escher maze', updatedAt: 'x' });   // (the stand-in serves every account)
+  const v = await lookUpWay({ signpost: `at://${ACCOUNT}/${SIGNPOST}/winter-forest.slide`, fetchImpl: w.fetchImpl, overrides: o });
+  assert.equal(v.doors[0].place, `at://${PYX}/${PLACE}/maze`, 'the destination on pyxorium.com');
+});
+
 test('test signposts stand in for the real one; everything else stays real', async () => {
   const w = world();
   w.put(PLACE, 'winter-forest', { $type: PLACE, tile: `at://${ACCOUNT}/ing.dasl.masl/hubtile`, cid: 'bafy-hub-v1', name: 'Winter Forest', updatedAt: 'x' });
@@ -135,7 +146,7 @@ test('a destination\'s ways.json, checked; entrances; the address for each exit'
 });
 
 test('copy-to-site: one page per exit, the files copied, and /way/ checked as hidden', () => {
-  assert.deepEqual(wayPages().map((p) => p.path), ['/way/maze/obelisk', '/way/winter-forest/wardrobe', '/way/winter-forest/tree-door', '/way/winter-forest/arch', '/way/winter-forest/slide']);
+  assert.deepEqual(wayPages().map((p) => p.path), ['/way/maze/obelisk', '/way/maze/second-door', '/way/winter-forest/wardrobe', '/way/winter-forest/tree-door', '/way/winter-forest/arch', '/way/winter-forest/slide']);
   const site = mkdtempSync(path.join(tmpdir(), 'site-'));
   writeFileSync(path.join(site, 'astro.config.mjs'), "const HIDDEN_PAGES = ['/webtiles/rooms-lab/'];\n");
   const notes = [];
@@ -145,7 +156,10 @@ test('copy-to-site: one page per exit, the files copied, and /way/ checked as hi
   for (const f of SITE_FILES) assert.deepEqual(readFileSync(path.join(site, 'src', 'way', f)), readFileSync(new URL(`../site/${f}`, import.meta.url)));
   assert.ok(existsSync(path.join(site, PAGE)));
   const gen = readFileSync(path.join(site, 'src', 'way', 'pages.generated.js'), 'utf8');
-  assert.match(gen, /"signpost": "at:\/\/did:plc:6vxjigxrqizmbo56gojxico3\/cafe\.thunderbird\.way\.signpost\/maze\.obelisk"/);
+  assert.match(gen, /"signpost": "at:\/\/did:plc:rqbqpaaluty5v47jwciowpik\/cafe\.thunderbird\.way\.signpost\/maze\.obelisk"/, 'the maze\'s signposts are pyxorium.com\'s');
+  assert.match(gen, /"signpost": "at:\/\/did:plc:rqbqpaaluty5v47jwciowpik\/cafe\.thunderbird\.way\.signpost\/maze\.second-door"/);
+  assert.match(gen, /"place": "at:\/\/did:plc:rqbqpaaluty5v47jwciowpik\/cafe\.thunderbird\.way\.place\/maze"/);
+  assert.match(gen, /"title": "Where the Escher maze's second door leads"/, 'the page says "second door"');
   assert.match(gen, /"signpost": "at:\/\/did:plc:6vxjigxrqizmbo56gojxico3\/cafe\.thunderbird\.way\.signpost\/winter-forest\.slide"/);
   assert.match(gen, /"place": "at:\/\/did:plc:6vxjigxrqizmbo56gojxico3\/cafe\.thunderbird\.way\.place\/winter-forest"/);
   writeFileSync(path.join(site, 'astro.config.mjs'), "const HIDDEN_PAGES = ['/webtiles/rooms-lab/', '/way/'];\n");

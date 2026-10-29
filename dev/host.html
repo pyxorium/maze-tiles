@@ -8,13 +8,15 @@
 </head>
 <body>
 <p>The maze held by a stand-in host, as Raku or the Rooms lab would one day hold it (claude/escher-maze-ways-plan.md).
-The host answers the maze's hello with what the obelisk's signpost would say. Walk to the Great Hall's obelisk and
-step into it.</p>
+The host answers the maze's hello with what the signposts would say (the obelisk's and, since 0.4.0, the Lantern
+room's door's: both the same here). Walk to the Great Hall's obelisk and step into it, or push the Lantern room's
+door.</p>
 <form id="modes">
-  <label><input type="radio" name="mode" value="open"> The obelisk leads somewhere</label>
+  <label><input type="radio" name="mode" value="open"> The obelisk and the door lead somewhere</label>
   <label><input type="radio" name="mode" value="dormant"> It leads nowhere yet (empty signpost)</label>
   <label><input type="radio" name="mode" value="plain"> No host (don't answer: a plain viewer)</label>
   <button type="button" id="arrive">Send a traveller in, at the obelisk</button>
+  <button type="button" id="arrivedoor">Send a traveller in, through the door</button>
 </form>
 <iframe id="maze" src="/" width="640" height="480" title="Escher maze"></iframe>
 <h2>What the maze said</h2>

@@ -20,7 +20,9 @@
 //   drop      a hole in the floor at `at: [x, y]`, one way (oneWay: true), to a landing
 //   landing   where a drop lands, `at: [x, y]`, turning you to `facing` as you fall; no way back up
 // `to` is "room.way": you arrive at that way, facing into the room. A door may be `closed` (step 1's
-// Lantern room) with a `note` instead of a `to`.
+// Lantern room) with a `note` instead of a `to`. A closed door can be a portal (M28, 0.4.0): `portal: { exit }` names
+// its exit in tile/ways.json, as an obelisk waystone does; its signpost says where it leads, and while it leads
+// nowhere it stays closed and says its note.
 //
 // marks: landmarks. orb (a pillar with an orb in the area's accent), pillar, obelisk, arches (blind arches
 // on a back wall), numeral (on a back wall), railing (along the open edges, instead of the kerb), blocks:
@@ -141,9 +143,12 @@ export const MAP = {
     lantern: {
       name: 'Lantern room', area: 'ivory', size: [5, 5], mapAt: [5, 1],
       marks: [],
+      // The second door (M28, M31 to M33): the maze's second way out and in, exit and entrance "second-door" in
+      // tile/ways.json. Travellers through it arrive a block in front of it, facing into the room, the door at their back.
+      entrances: [{ id: 'second-door', at: [2, 1], facing: 'sw' }],
       ways: [
         { id: 'hall', kind: 'ramp', dir: 'down', side: 'sw', at: 2, to: 'hall.lantern' },
-        { id: 'door', kind: 'door', side: 'ne', at: 2, closed: true, note: 'This door is closed, for now.' },
+        { id: 'door', kind: 'door', side: 'ne', at: 2, closed: true, note: 'This door is closed, for now.', portal: { exit: 'second-door' } },
         { id: 'lookout', kind: 'hallway', side: 'nw', at: 2, to: 'lookout.lantern' },
       ],
     },

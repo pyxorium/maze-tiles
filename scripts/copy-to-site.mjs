@@ -1,6 +1,7 @@
 // copy-to-site.mjs: brings the way pages (site\) into the thunderbird.cafe site, as rooms-lab's does for its page.
 // Since Winter Forest's step 3 the way pages are travel pages (site\travel.js), and there's one for every exit of
-// every tile with ways: the maze's obelisk and Winter Forest's wardrobe, tree-door, arch and slide.
+// every tile with ways: the maze's obelisk and second door (0.4.0), and Winter Forest's wardrobe, tree-door, arch and
+// slide.
 // Run in C:\thunderbird-cafe\maze-tiles after changing anything in site\ or a tile's ways.json:
 //
 //   node scripts/copy-to-site.mjs                     the site at C:\thunderbird-cafe\pyxorium.github.io
@@ -27,7 +28,8 @@ export function wayPages(tiles = WAY_TILES) {
       const url = new URL(e.fallback);
       const want = `/way/${ways.tile}/${e.id}`;
       if (url.origin !== 'https://thunderbird.cafe' || url.pathname !== want) throw new Error(`${id}: the exit ${e.id}'s fallback should be https://thunderbird.cafe${want}`);
-      out.push({ tile: ways.tile, exit: e.id, signpost: e.signpost, place: ways.place, from: `the ${t.name}'s ${e.id}`, title: `Where the ${t.name}'s ${e.id} leads`, path: want });
+      const name = (t.exitNames || {})[e.id] || e.id;                // how the page says the exit ("second door")
+      out.push({ tile: ways.tile, exit: e.id, signpost: e.signpost, place: ways.place, from: `the ${t.name}'s ${name}`, title: `Where the ${t.name}'s ${name} leads`, path: want });
     }
   }
   return out;

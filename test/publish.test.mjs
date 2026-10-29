@@ -3,7 +3,7 @@
 // check that tile/maze.js is built from the current src/, and the isometric snapshot's own settings (--iso).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runPublish, ACCOUNT, PLACE, SIGNPOST } from '../scripts/publish.mjs';
+import { runPublish, ACCOUNT, PYXORIUM_DID, PLACE, SIGNPOST, accountOf } from '../scripts/publish.mjs';
 import { publishFiles, TILES, FOREST_TILES } from '../scripts/tiles.mjs';
 import { ISO_TILES } from '../iso/tiles.mjs';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -12,6 +12,10 @@ import { dagCborCid } from '../scripts/lib/dagcbor.js';
 import { rawCid } from '../scripts/lib/cid.js';
 
 const quiet = () => {};
+// Since 0.4.0 the maze is pyxorium.com's (M30) and Winter Forest thunderbird.cafe's.
+const MAZE = PYXORIUM_DID;
+const mazePds = () => createFakePds({ did: MAZE, handle: 'pyxorium.com' });
+const cafePds = () => createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
 function run(pds, opts = {}) {
   let published = opts.published || {};
   return runPublish({
@@ -22,7 +26,7 @@ function run(pds, opts = {}) {
 }
 
 test('a dry run writes nothing and asks nothing', async () => {
-  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+  const pds = mazePds();
   const r = await run(pds, { dryRun: true, askHidden: async () => { throw new Error('asked'); } });
   assert.equal(r.changed, false);
   assert.deepEqual(r.plan.map((t) => t.id), ['maze']);
@@ -30,11 +34,11 @@ test('a dry run writes nothing and asks nothing', async () => {
 });
 
 test('publishing the maze: a Foundry-shaped record, every file read back', async () => {
-  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+  const pds = mazePds();
   const r = await run(pds);
   assert.equal(r.changed, true);
   const p = r.published.maze;
-  assert.match(p.uri, new RegExp(`^at://${ACCOUNT}/ing.dasl.masl/`));
+  assert.match(p.uri, new RegExp(`^at://${MAZE}/ing.dasl.masl/`), 'from pyxorium.com');
   const value = pds.records.get(`ing.dasl.masl/${p.uri.split('/').pop()}`).value;
   assert.equal(value.$type, 'ing.dasl.masl');
   assert.equal(value.cid, await dagCborCid(value.tile));
@@ -53,7 +57,7 @@ test('publishing the maze: a Foundry-shaped record, every file read back', async
 });
 
 test('published once: nothing to do; --again: a new record', async () => {
-  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+  const pds = mazePds();
   const first = await run(pds);
   const second = await run(pds, { published: first.published });
   assert.equal(second.changed, false);
@@ -63,7 +67,7 @@ test('published once: nothing to do; --again: a new record', async () => {
 });
 
 test('a wrong password or "no" publishes nothing', async () => {
-  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+  const pds = mazePds();
   await assert.rejects(run(pds, { password: 'wrong' }), /Invalid identifier or password/);
   const no = await run(pds, { answer: 'n' });
   assert.equal(no.changed, false);
@@ -71,7 +75,7 @@ test('a wrong password or "no" publishes nothing', async () => {
 });
 
 test('an out-of-date tile/maze.js stops publishing', async () => {
-  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+  const pds = mazePds();
   await assert.rejects(run(pds, { checkBundle: async () => false }), /npm run build/);
   assert.ok(!pds.calls.some((c) => c.includes('uploadBlob')));
 });
@@ -99,9 +103,9 @@ test('the debugging switches of the look test are not in the real tile', () => {
 });
 
 test('--iso: the isometric snapshot publishes on its own, under its own name, only when asked', async () => {
-  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
-  const dry = await run(pds, { dryRun: true });
+  const dry = await run(mazePds(), { dryRun: true });
   assert.deepEqual(dry.plan.map((t) => t.id), ['maze'], 'by default only the 3D maze');
+  const pds = cafePds();
   const r = await run(pds, { tiles: ISO_TILES });
   const p = r.published.mazeIso;
   const value = pds.records.get(`ing.dasl.masl/${p.uri.split('/').pop()}`).value;
@@ -114,79 +118,134 @@ test('--iso: the isometric snapshot publishes on its own, under its own name, on
 });
 
 // ---- ways (claude/escher-maze-ways-plan.md, M21, M24) -----------------------------------------------------------
-test('ways: the lexicons, the place (with the tile\'s exact version) and an empty signpost, alongside the tile', async () => {
-  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+const FOREST_PLACE = `at://${ACCOUNT}/${PLACE}/winter-forest`;
+test('ways: the place (with the tile\'s exact version) and two signposts alongside the tile, and no lexicons from pyxorium.com', async () => {
+  const pds = mazePds();
   const dry = await run(pds, { dryRun: true });
-  assert.deepEqual(dry.lexiconsDue, [PLACE, SIGNPOST]);
-  assert.deepEqual(dry.placesDue, [`at://${ACCOUNT}/${PLACE}/maze`]);
-  assert.deepEqual(dry.signpostsDue, [`at://${ACCOUNT}/${SIGNPOST}/maze.obelisk`]);
+  assert.deepEqual(dry.lexiconsDue, [], 'the lexicons are thunderbird.cafe\'s: never written from pyxorium.com (M30)');
+  assert.deepEqual(dry.placesDue, [`at://${MAZE}/${PLACE}/maze`]);
+  assert.deepEqual(dry.signpostsDue, [`at://${MAZE}/${SIGNPOST}/maze.obelisk`, `at://${MAZE}/${SIGNPOST}/maze.second-door`]);
   const r = await run(pds);
+  assert.ok(![...pds.records.keys()].some((k) => k.startsWith('com.atproto.lexicon.schema/')), 'no lexicons');
+  assert.equal(r.published.lexicons, undefined);
+  const place = pds.records.get(`${PLACE}/maze`).value;
+  assert.deepEqual(place, { $type: PLACE, tile: r.published.maze.uri, cid: r.published.maze.cid, name: 'Escher maze', updatedAt: '2026-10-25T12:00:00.000Z' });
+  assert.equal(place.cid, pds.records.get(`ing.dasl.masl/${r.published.maze.uri.split('/').pop()}`).cid, 'the CID is the tile record\'s');
+  assert.deepEqual(pds.records.get(`${SIGNPOST}/maze.obelisk`).value, { $type: SIGNPOST, to: [{ place: FOREST_PLACE, entrance: 'lamppost' }], updatedAt: '2026-10-25T12:00:00.000Z' },
+    'the obelisk leads to Winter Forest\'s lamp post at once (M33)');
+  assert.deepEqual(pds.records.get(`${SIGNPOST}/maze.second-door`).value, { $type: SIGNPOST, to: [], updatedAt: '2026-10-25T12:00:00.000Z' }, 'the second door: empty, dormant');
+  assert.equal(r.published.places.maze.tile, r.published.maze.uri);
+  assert.deepEqual(r.published.accounts, { 'pyxorium.com': MAZE });
+});
+
+test('ways: from thunderbird.cafe the lexicons go up with the forest, each only when new or changed', async () => {
+  const pds = cafePds();
+  const dry = await run(pds, { tiles: FOREST_TILES, dryRun: true });
+  assert.deepEqual(dry.lexiconsDue, [PLACE, SIGNPOST]);
+  const r = await run(pds, { tiles: FOREST_TILES });
   for (const id of [PLACE, SIGNPOST]) {
     const l = pds.records.get(`com.atproto.lexicon.schema/${id}`);
     assert.ok(l, `the lexicon ${id}`);
     assert.equal(l.value.$type, 'com.atproto.lexicon.schema');
   }
-  const place = pds.records.get(`${PLACE}/maze`).value;
-  assert.deepEqual(place, { $type: PLACE, tile: r.published.maze.uri, cid: r.published.maze.cid, name: 'Escher maze', updatedAt: '2026-10-25T12:00:00.000Z' });
-  assert.equal(place.cid, pds.records.get(`ing.dasl.masl/${r.published.maze.uri.split('/').pop()}`).cid, 'the CID is the tile record\'s');
-  const sign = pds.records.get(`${SIGNPOST}/maze.obelisk`).value;
-  assert.deepEqual(sign, { $type: SIGNPOST, to: [], updatedAt: '2026-10-25T12:00:00.000Z' }, 'empty: dormant');
-  assert.equal(r.published.places.maze.tile, r.published.maze.uri);
   assert.ok(r.published.lexicons[PLACE].text);
+  const stale = { ...r.published, lexicons: { ...r.published.lexicons, [SIGNPOST]: { ...r.published.lexicons[SIGNPOST], text: '{}' } } };
+  assert.deepEqual((await run(pds, { tiles: FOREST_TILES, published: stale, dryRun: true })).lexiconsDue, [SIGNPOST]);
+});
+
+test('moving the maze: published.json\'s thunderbird.cafe maze counts as not published here, and is kept under earlier', async () => {
+  // published.json as it was before 0.4.0 (the maze, its place and its signpost on thunderbird.cafe; the forest too).
+  const cafe = cafePds();
+  const old = await run(cafe, { tiles: { maze: { ...TILES.maze, account: undefined, signposts: undefined } } }).catch((e) => e);
+  assert.ok(old instanceof Error && /should be a cafe\.thunderbird\.way\.place record of did:plc:6vxjigxrqizmbo56gojxico3/.test(old.message),
+    'the maze\'s ways.json names pyxorium.com\'s records now, so it can\'t be published from thunderbird.cafe');
+  const before = {
+    account: ACCOUNT, handle: 'thunderbird.cafe',
+    lexicons: { [PLACE]: { uri: 'x', text: 'y' } },
+    maze: { uri: `at://${ACCOUNT}/ing.dasl.masl/3mys6stpsyc2b`, cid: 'bafy-old' },
+    'winter-forest': { uri: `at://${ACCOUNT}/ing.dasl.masl/3myxm45elkp22`, cid: 'bafy-forest' },
+    places: { maze: { uri: `at://${ACCOUNT}/${PLACE}/maze`, tile: `at://${ACCOUNT}/ing.dasl.masl/3mys6stpsyc2b` }, 'winter-forest': { uri: FOREST_PLACE, tile: 'f' } },
+    signposts: { 'maze.obelisk': { uri: `at://${ACCOUNT}/${SIGNPOST}/maze.obelisk` }, 'winter-forest.slide': { uri: `at://${ACCOUNT}/${SIGNPOST}/winter-forest.slide` } },
+  };
+  const pds = mazePds();
+  const dry = await run(pds, { published: before, dryRun: true });
+  assert.deepEqual(dry.plan.map((t) => t.id), ['maze'], 'no --again needed');
+  const r = await run(pds, { published: before });
+  const p = r.published;
+  assert.match(p.maze.uri, new RegExp(`^at://${MAZE}/`));
+  assert.equal(p.places.maze.uri, `at://${MAZE}/${PLACE}/maze`);
+  assert.equal(p.signposts['maze.obelisk'].uri, `at://${MAZE}/${SIGNPOST}/maze.obelisk`);
+  assert.equal(p.signposts['maze.second-door'].uri, `at://${MAZE}/${SIGNPOST}/maze.second-door`);
+  assert.deepEqual(p.earlier['thunderbird.cafe'], { maze: before.maze, places: { maze: before.places.maze }, signposts: { 'maze.obelisk': before.signposts['maze.obelisk'] } });
+  assert.deepEqual(p['winter-forest'], before['winter-forest'], 'the forest untouched');
+  assert.deepEqual(p.places['winter-forest'], before.places['winter-forest']);
+  assert.deepEqual(p.signposts['winter-forest.slide'], before.signposts['winter-forest.slide']);
+  assert.deepEqual(p.lexicons, before.lexicons);
+  assert.deepEqual(p.accounts, { 'thunderbird.cafe': ACCOUNT, 'pyxorium.com': MAZE });
+  assert.equal(p.account, undefined, 'the one top-level account is gone: each tile has its own');
+  // Then the forest from thunderbird.cafe: the maze's entries stay as they are.
+  const f = await run(cafe, { tiles: FOREST_TILES, published: p, again: true });
+  assert.equal(f.published.maze.uri, p.maze.uri);
+  assert.deepEqual(f.published.earlier, p.earlier);
+  assert.equal(f.published.signposts['maze.obelisk'].uri, p.signposts['maze.obelisk'].uri);
+});
+
+test('a set of tiles from two accounts is refused', () => {
+  assert.throws(() => accountOf({ ...TILES, ...FOREST_TILES }), /different accounts/);
+  assert.equal(accountOf(TILES), MAZE);
+  assert.equal(accountOf(FOREST_TILES), ACCOUNT);
+  assert.equal(accountOf(ISO_TILES), ACCOUNT);
 });
 
 test('ways: --again moves the place to the new tile and never touches a signpost you\'ve pointed somewhere', async () => {
-  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+  const pds = mazePds();
   const first = await run(pds);
   // The owner points the obelisk somewhere (by hand, in PDSls).
   const pointed = { $type: SIGNPOST, to: [{ place: `at://${ACCOUNT}/${PLACE}/hub`, entrance: 'south-stone' }], updatedAt: '2026-11-01T00:00:00.000Z' };
   pds.records.set(`${SIGNPOST}/maze.obelisk`, { value: pointed, cid: 'bafy-owner' });
-  const lexCalls = () => pds.calls.filter((c) => c.includes('putRecord')).length;
-  const before = lexCalls();
+  const puts = () => pds.calls.filter((c) => c.includes('putRecord')).length;
+  const before = puts();
   const again = await run(pds, { published: first.published, again: true });
   assert.notEqual(again.published.maze.uri, first.published.maze.uri);
   const place = pds.records.get(`${PLACE}/maze`).value;
   assert.equal(place.tile, again.published.maze.uri);
   assert.equal(place.cid, again.published.maze.cid);
   assert.deepEqual(pds.records.get(`${SIGNPOST}/maze.obelisk`).value, pointed, 'the signpost is yours');
-  assert.equal(lexCalls() - before, 1, 'only the place was written again (the lexicons are unchanged)');
+  assert.equal(puts() - before, 1, 'only the place was written again');
 });
 
 test('ways: a missing place or signpost is put right without republishing the tile', async () => {
-  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+  const pds = mazePds();
   const first = await run(pds);
-  pds.records.delete(`${SIGNPOST}/maze.obelisk`);
+  pds.records.delete(`${SIGNPOST}/maze.second-door`);
   const { places, ...noPlace } = first.published;
   const fix = await run(pds, { published: noPlace });
   assert.equal(fix.changed, true);
   assert.equal(fix.published.maze.uri, first.published.maze.uri, 'the same tile');
   assert.equal(pds.records.get(`${PLACE}/maze`).value.tile, first.published.maze.uri);
-  assert.deepEqual(pds.records.get(`${SIGNPOST}/maze.obelisk`).value.to, []);
+  assert.deepEqual(pds.records.get(`${SIGNPOST}/maze.second-door`).value.to, []);
   const calm = await run(pds, { published: fix.published });
   assert.equal(calm.changed, false, 'then nothing to do');
 });
 
-test('ways: a changed lexicon is published again; a signpost that appears meanwhile is never overwritten', async () => {
-  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
-  const first = await run(pds);
-  const stale = { ...first.published, lexicons: { ...first.published.lexicons, [SIGNPOST]: { ...first.published.lexicons[SIGNPOST], text: '{}' } } };
-  const r = await run(pds, { published: stale, dryRun: true });
-  assert.deepEqual(r.lexiconsDue, [SIGNPOST]);
+test('ways: a signpost that appears meanwhile is never overwritten', async () => {
+  const pds = mazePds();
+  await run(pds);
   // createRecord refuses a key that's taken: the stand-in does as a real server.
-  const res = await pds.fetchImpl('https://pds.test/xrpc/com.atproto.repo.createRecord', { method: 'POST', headers: { Authorization: 'Bearer fake-jwt' }, body: JSON.stringify({ repo: ACCOUNT, collection: SIGNPOST, rkey: 'maze.obelisk', record: { to: [] } }) });
+  const res = await pds.fetchImpl('https://pds.test/xrpc/com.atproto.repo.createRecord', { method: 'POST', headers: { Authorization: 'Bearer fake-jwt' }, body: JSON.stringify({ repo: MAZE, collection: SIGNPOST, rkey: 'maze.obelisk', record: { to: [] } }) });
   assert.equal(res.status, 400);
 });
 
 // ---- Winter Forest (--forest; claude/winter-forest-step3-plan.md, W42 to W45) ---------------------------------------
-const MAZE_PLACE = `at://${ACCOUNT}/${PLACE}/maze`;
+const MAZE_PLACE = `at://${MAZE}/${PLACE}/maze`;
 test('--forest: the forest\'s tile, its place and four signposts (the slide already leading to the maze\'s obelisk)', async () => {
-  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
-  const maze = await run(pds);                                              // the maze, published before (as live)
-  const mazeKeys = [...pds.records.keys()].filter((k) => !k.startsWith('com.atproto.lexicon'));
-  const mazeBefore = Object.fromEntries(mazeKeys.map((k) => [k, JSON.stringify(pds.records.get(k))]));
+  const mp = mazePds(), pds = cafePds();
+  const maze = await run(mp);                                               // the maze, published before (pyxorium.com)
+  const mazeKeys = [...mp.records.keys()];
+  const mazeBefore = Object.fromEntries(mazeKeys.map((k) => [k, JSON.stringify(mp.records.get(k))]));
   const dry = await run(pds, { tiles: FOREST_TILES, published: maze.published, dryRun: true });
   assert.deepEqual(dry.plan.map((t) => t.id), ['winter-forest']);
-  assert.deepEqual(dry.lexiconsDue, [], 'the lexicons are already published');
+  assert.deepEqual(dry.lexiconsDue, [PLACE, SIGNPOST], 'thunderbird.cafe holds the lexicons');
   assert.deepEqual(dry.placesDue, [`at://${ACCOUNT}/${PLACE}/winter-forest`]);
   assert.deepEqual(dry.signpostsDue, ['wardrobe', 'tree-door', 'arch', 'slide'].map((x) => `at://${ACCOUNT}/${SIGNPOST}/winter-forest.${x}`));
   const r = await run(pds, { tiles: FOREST_TILES, published: maze.published });
@@ -203,15 +262,15 @@ test('--forest: the forest\'s tile, its place and four signposts (the slide alre
   const place = pds.records.get(`${PLACE}/winter-forest`).value;
   assert.deepEqual(place, { $type: PLACE, tile: p.uri, cid: p.cid, name: 'Winter Forest', updatedAt: '2026-10-25T12:00:00.000Z' });
   for (const x of ['wardrobe', 'tree-door', 'arch']) assert.deepEqual(pds.records.get(`${SIGNPOST}/winter-forest.${x}`).value.to, [], `${x}: empty`);
-  assert.deepEqual(pds.records.get(`${SIGNPOST}/winter-forest.slide`).value, { $type: SIGNPOST, to: [{ place: MAZE_PLACE, entrance: 'obelisk' }], updatedAt: '2026-10-25T12:00:00.000Z' }, 'the slide: the maze\'s obelisk (W20)');
-  for (const k of mazeKeys) assert.equal(JSON.stringify(pds.records.get(k)), mazeBefore[k], `${k} untouched`);
+  assert.deepEqual(pds.records.get(`${SIGNPOST}/winter-forest.slide`).value, { $type: SIGNPOST, to: [{ place: MAZE_PLACE, entrance: 'obelisk' }], updatedAt: '2026-10-25T12:00:00.000Z' }, 'the slide: pyxorium.com\'s maze, its obelisk (W20, M30)');
+  for (const k of mazeKeys) assert.equal(JSON.stringify(mp.records.get(k)), mazeBefore[k], `${k} untouched`);
   assert.equal(r.published.maze.uri, maze.published.maze.uri, 'the maze stays as published');
   assert.equal(r.published.places.maze.uri, maze.published.places.maze.uri);
 });
 
 test('--forest --again: a new forest record and its place moved to it; the maze and every signpost untouched', async () => {
-  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
-  const maze = await run(pds);
+  const pds = cafePds();
+  const maze = await run(mazePds());
   const first = await run(pds, { tiles: FOREST_TILES, published: maze.published });
   pds.records.set(`${SIGNPOST}/winter-forest.arch`, { value: { $type: SIGNPOST, to: [{ place: `at://${ACCOUNT}/${PLACE}/second-forest`, entrance: 'arch' }], updatedAt: 'x' }, cid: 'bafy-owner' });
   const slideBefore = JSON.stringify(pds.records.get(`${SIGNPOST}/winter-forest.slide`));
@@ -228,7 +287,7 @@ test('--forest --again: a new forest record and its place moved to it; the maze 
 });
 
 test('--forest: an out-of-date forest.js stops publishing, and says which build to run', async () => {
-  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+  const pds = cafePds();
   let asked = null;
   await assert.rejects(run(pds, { tiles: FOREST_TILES, checkBundle: async (id) => { asked = id; return false; } }), /forest\\tile\\forest\.js is older than forest\\src\\: run `npm run build-forest`/);
   assert.equal(asked, 'winter-forest');
