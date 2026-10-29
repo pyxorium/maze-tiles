@@ -160,7 +160,11 @@ export const IDENTITY = { k: 0, tx: 0, ty: 0, dy: 0 };
 // only from its own L cell, and only when the gate can be passed; when the centre enters it, the figure has gone
 // through (crossed). Moving back the way you came is never refused, so the figure can't get stuck. Slightly off
 // line for an opening ahead, it eases sideways into it.
+// M38 (0.4.0): a door's far cell is the doorway through the wall, and only its arch is open (DOOR_SPAN across the
+// cell, as world.js draws it): the footprint may reach into it only within the arch, or the figure's side went into
+// the wall beside the door.
 export const RADIUS = 0.22;
+export const DOOR_SPAN = [0.22, 0.78];
 export const cellOf = (x, y) => [Math.floor(x), Math.floor(y)];
 
 // A hole (drops) counts as floor for the footprint, so you can walk round its edge; when the centre enters it,
@@ -186,8 +190,16 @@ export function freeMove(pos, [dx, dy], { heights, gates, drops = [], passable =
     const y0 = Math.floor(py - radius), y1 = Math.floor(py + radius - 1e-9);
     let top = -Infinity;
     for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) {
-      const h = heightAt(cx, cy, cx === c[0] && cy === c[1] ? start : c);
+      const from = cx === c[0] && cy === c[1] ? start : c;
+      const h = heightAt(cx, cy, from);
       if (h === undefined) return null;
+      if (!heights.has(k2(cx, cy))) {
+        const g = gateOut(cx, cy, from);
+        if (g && g.way.kind === 'door') {
+          const lat = g.dir[0] === 0 ? 0 : 1, u = (lat === 0 ? px : py) - g.O[lat];
+          if (u - radius < DOOR_SPAN[0] - 1e-9 || u + radius > DOOR_SPAN[1] + 1e-9) return null;
+        }
+      }
       if (cx !== c[0] && cy !== c[1] && (heightAt(cx, c[1], c) === undefined || heightAt(c[0], cy, c) === undefined)) return null;
       top = Math.max(top, h);
     }

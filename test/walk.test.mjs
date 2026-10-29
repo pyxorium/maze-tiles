@@ -80,7 +80,7 @@ test('placing back the other way is the inverse, so walking through and back ret
 });
 
 // ---- free walking ----
-import { freeMove, facingOfYaw, RADIUS } from '../src/walk.js';
+import { freeMove, facingOfYaw, RADIUS, DOOR_SPAN } from '../src/walk.js';
 
 function walkFree(room, pos, dir, steps, passable = () => true) {
   const heights = heightsOf(M.rooms[room]), gates = gatesOf(M.rooms[room]), drops = dropsOf(M.rooms[room]);
@@ -301,4 +301,30 @@ test('free walking: through every way on in every room, from its standing cell',
       else assert.equal(r.last.crossed, null, `${id}.${g.way.id} stays shut`);
     }
   }
+});
+
+test('M38: walking at any door, from anywhere and at any angle, the body never goes into the wall beside its arch, and still gets through', () => {
+  const R = 0.2;                                                     // the figure's body (world.js buildFigure)
+  let worst = 0, through = 0, tries = 0;
+  for (const id of Object.keys(MAP.rooms)) {
+    const room = MAP.rooms[id], gates = gatesOf(room), heights = heightsOf(room), drops = dropsOf(room);
+    const passable = (q) => !!q.way.to && !q.way.closed;
+    for (const g of gates.filter((q) => q.way.kind === 'door' && passable(q))) {
+      const lat = g.dir[0] === 0 ? 0 : 1;
+      for (let off = -0.45; off <= 0.45001; off += 0.15) for (let ang = -1.2; ang <= 1.2001; ang += 0.3) {
+        let p = [g.L[0] + 0.5, g.L[1] + 0.5]; p[lat] += off;
+        const f = [g.dir[0] * Math.cos(ang) + (lat === 0 ? Math.sin(ang) : 0), g.dir[1] * Math.cos(ang) + (lat === 1 ? Math.sin(ang) : 0)];
+        let crossed = false;
+        for (let i = 0; i < 80 && !crossed; i++) {
+          const r = freeMove(p, [f[0] * 0.04, f[1] * 0.04], { heights, gates, drops, passable });
+          p = r.pos; crossed = !!r.crossed;
+          const along = (p[1 - lat] - (g.L[1 - lat] + 0.5)) * g.dir[1 - lat];
+          if (!crossed && along + R > 0.5) { const u = p[lat] - g.O[lat]; worst = Math.max(worst, DOOR_SPAN[0] - (u - R), (u + R) - DOOR_SPAN[1]); }
+        }
+        if (Math.abs(off) <= 0.3 && Math.abs(ang) <= 0.6) { tries++; if (crossed) through++; }
+      }
+    }
+  }
+  assert.ok(worst <= 1e-9, `the body went ${worst.toFixed(2)} into a door jamb`);
+  assert.equal(through, tries, 'walking at a door roughly on line gets you through');
 });

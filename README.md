@@ -28,10 +28,12 @@ closed, for now."; with no host at all (lexicographer.space, a gallery) each off
 (https://thunderbird.cafe/way/maze/obelisk or …/second-door), which takes you where it leads. Travellers arriving
 through the door come in a block in front of it, facing into the room, and it swings shut behind them. See "Ways".
 
-**Sound** (since 0.4.0), all made in code: footsteps (stone, stairs, ramps), a quiet tone for each kind of room, a
-Shepard tone in the four landings that seems to rise for ever as you climb, the obelisk's hum (with a shimmer when
-it leads somewhere), the door's creak and thud, the fall. It starts with your first key, click or tap; the bar's
-**Sound** button turns it off and on (not remembered).
+**Sound** (since 0.4.0), all made in code, hushed like a gallery: footsteps (stone, stairs, ramps) with a little of
+the room's echo; otherwise near-silence, with now and then one soft distant note (a set of notes for each kind of
+room); on the four landings' flights a soft tap for each step, climbing an endless Shepard scale as the stairs climb
+for ever; one soft bright note as you come near the obelisk or the door when it leads somewhere; the door's creak
+and thud; the fall. It starts with your first key, click or tap; the bar's **Sound** button turns it off and on
+(not remembered).
 
 **Map** (or M) shows the rooms you've found and the ways you've taken. The gear menu also has **Back to the
 start** (the map is kept) and **Reduce motion** (taken from the device's own setting): the fall and the
@@ -48,6 +50,7 @@ swoop through doorways become quick fades. Nothing is saved: a reload starts aga
 - **0.4.0** (Oct 29 2026, M28 to M36, claude/escher-maze-04-plan.md): the Lantern room's door is the second way out
   and in (exit and entrance `second-door`); the obelisk a block shorter; sound; published from pyxorium.com (the
   maze's place and signposts there too), the obelisk's signpost starting out leading to Winter Forest's lamp post.
+  Also the figure no longer goes into the wall beside a door's arch (M38).
 
 ## The folders
 

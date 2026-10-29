@@ -153,7 +153,8 @@ try {
   let log = await seen(page);
   s = await st(page);
   ok(s.room === 'landing1' && s.view === 'landing1', 'up the stairs into Landing I');
-  { const snd = (await st(page)).sound; ok(snd.started && snd.bed === 'slate', `sound started with the first key, the landings' room tone playing (${snd.bed}; running ${snd.running})`); }
+  { const snd = (await st(page)).sound; ok(snd.started && snd.bed === 'slate', `sound started with the first key, in the landings' set of notes (${snd.bed}; running ${snd.running})`);
+    ok(snd.taps === 0, `no Shepard taps on the Courtyard's stairs (M37: the landings' flights only) (${snd.taps})`); }
   ok(!log.some((x) => x.fading) && log.some((x) => x.chain === 1 && x.room === 'landing1' && x.view === 'courtyard'), 'seamless: the figure goes through first, the camera follows, no fade');
   ok(log.some((x) => x.h >= 1.5 && x.room === 'courtyard'), 'climbing the steps on the way');
   ok(!(await page.isVisible('#hint')) || (await page.$eval('#hint', (e) => e.classList.contains('gone'))), 'the hint goes once you move');
@@ -168,6 +169,7 @@ try {
     s = await walk(page, s.room, [[1.5, 5.5]]);
   }
   ok(loop.join(' ') === 'landing2 landing3 landing4 landing1', `the Penrose loop: ${loop.join(' > ')}`);
+  { const snd = (await st(page)).sound; ok(snd.taps >= 4, `a soft Shepard tap for steps up the landings' flights (${snd.taps} taps, now at step ${snd.step} of 12)`); }
   await shot(page, '02-loop-back-at-landing-I');
 
   // Landing III → the Lookout → the Lantern room (the closed door) → down the ramp into the Great Hall.
@@ -196,7 +198,7 @@ try {
   // The waystone (M9, M22). The tile opened on its own is a plain viewer: no host, so it offers its fallback.
   s = await walk(page, 'hall', [[3.5, 2.5], [3.5, 3.2]]);
   await face(page, [3.5, 4.5]);
-  await page.keyboard.down('ArrowUp'); await page.waitForTimeout(700); await page.keyboard.up('ArrowUp');
+  await page.keyboard.down('ArrowUp'); await until(async () => !!(await offerOf(page)), 8000); await page.keyboard.up('ArrowUp');
   let o = await offerOf(page);
   ok(o && /can't take you anywhere from here/.test(o.text) && o.link === 'Open where this leads' && o.href === 'https://thunderbird.cafe/way/maze/obelisk' && o.target === '_blank',
     'the obelisk with no host: "I can\'t take you anywhere from here." and its fallback address in a new tab');
@@ -453,6 +455,7 @@ try {
     const leftDoor = (await hp.evaluate(() => window.__host.log)).filter((p) => p.kind === 'leave' && p.exit === 'second-door');
     ok(leftDoor.length === 1 && leftDoor[0].facing === 'ne' && Object.keys(leftDoor[0]).sort().join() === 'exit,facing,kind,v', 'pushing the open door: it swings open and way.leave says "second-door" (and the facing only)');
     ok(s.doorAngle > 1 && s.room === 'lantern', `the door wide open as you go (${s.doorAngle.toFixed(2)} rad)`);
+    ok(s.sound.chimes >= 2, `one soft bright note coming near the open obelisk, one near the open door (${s.sound.chimes})`);
     await shot(hp, '17-door-leaving');
     await hp.evaluate(() => window.__host.arriveDoor());
     await until(async () => { const x = await f.evaluate(() => window.__maze.state()); return x.cell.join() === '2,1' && !x.fading; });

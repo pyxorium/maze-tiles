@@ -7,7 +7,8 @@
 // opening. The hole in the Well room is a real fall into the Cellar. Free walking by default; step and turn in
 // the gear menu. The map card fills in as you go. Nothing is saved: a reload starts again in the Courtyard.
 // 0.4.0 (claude/escher-maze-04-plan.md): the Lantern room's door is a second way out and in (M28, M31 to M33), the
-// obelisk a block shorter (M29), and the maze has sound (M34, src/sound.js).
+// obelisk a block shorter (M29), the maze has sound (M34, reworked as a hushed gallery by M37: src/sound.js), and
+// the figure no longer goes into the wall beside a door's arch (M38, src/walk.js).
 
 import * as THREE from 'three';
 import { MAP } from './map.js';
@@ -97,7 +98,7 @@ const controls = createControls({
   onKey: (k) => ui.key(k),
 });
 
-// ---- sound (M34) ---------------------------------------------------------------------------------------------------
+// ---- sound (M34, M37) ---------------------------------------------------------------------------------------------------
 // On by default, starting with the first key, click or tap (browsers allow sound only then); the bar's button turns it
 // off and on. Not remembered: the maze saves nothing.
 const sound = createSound();
@@ -111,12 +112,16 @@ const soundArea = (roomId) => (roomId === 'cellar' ? 'dull' : MAP.rooms[roomId].
 const isLanding = (roomId) => /^landing\d$/.test(roomId);
 // Footsteps: one every STRIDE blocks walked, by what's underfoot.
 const STRIDE = 0.62;
-let strode = 0, stepH = 0;
+let strode = 0, stepH = 0, stepRoom = null;
 function footstep() {
   const slope = slopesCache.get(fig.room).get(`${fig.cell[0]},${fig.cell[1]}`);
-  const dh = fig.local[2] - stepH;
-  stepH = fig.local[2];
-  sound.step(slope ? 'ramp' : Math.abs(dh) > 0.05 ? 'steps' : 'stone', Math.sign(Math.round(dh * 20)));
+  // Each room has its own heights: through a way into the next room, start again (no false step up or down).
+  const dh = fig.room === stepRoom ? fig.local[2] - stepH : 0;
+  stepH = fig.local[2]; stepRoom = fig.room;
+  const surface = slope ? 'ramp' : Math.abs(dh) > 0.05 ? 'steps' : 'stone', up = Math.sign(Math.round(dh * 20));
+  sound.step(surface, up);
+  // M37: on the four landings' flights, a soft tap on the endless Shepard scale for each step.
+  if (surface === 'steps' && isLanding(fig.room)) sound.tap(up);
 }
 // The sources in each room: its waystones and door portals, where they stand in the room's own coordinates.
 const SOURCES = new Map(ROOM_IDS.map((id) => {
@@ -125,20 +130,12 @@ const SOURCES = new Map(ROOM_IDS.map((id) => {
   const doors = R.ways.filter((w) => w.portal).map((w) => ({ exit: w.portal.exit, kind: 'door', at: w.side === 'ne' ? [w.at + 0.5, 0] : [0, w.at + 0.5] }));
   return [id, [...marks, ...doors]];
 }));
-let climbRoom = null, climbZ = 0;
 function updateSound() {
-  let climb = null;
-  if (isLanding(fig.room)) {
-    climb = climbRoom === fig.room ? fig.local[2] - climbZ : 0;
-    // Going through to the next landing the height starts again from that room's floor: no jump in the tone.
-    if (Math.abs(climb) > 0.6) climb = 0;
-  }
-  climbRoom = fig.room; climbZ = fig.local[2];
   const src = (kind) => {
     const s = SOURCES.get(fig.room).find((x) => x.kind === kind);
     return s ? { dist: Math.hypot(s.at[0] - fig.local[0], s.at[1] - fig.local[1]), open: ways.state(s.exit) === 'open' } : null;
   };
-  sound.update({ area: soundArea(fig.room), climb, obelisk: src('obelisk'), door: src('door') });
+  sound.update({ area: soundArea(fig.room), obelisk: src('obelisk'), door: src('door') });
 }
 
 // ---- moving -------------------------------------------------------------------------------------------------------
