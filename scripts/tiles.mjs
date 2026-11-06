@@ -1,7 +1,7 @@
 // tiles.mjs: what goes into each tile (modelled on rooms-lab/scripts/tiles.mjs), for publish.mjs and copy-to-site.mjs.
 //   maze            the Escher maze over the shoulder: twelve rooms in 3D (TILES; publish.mjs)
 //   winter-forest   Winter Forest, the hub beyond the obelisk (FOREST_TILES; publish.mjs --forest)
-//   places          the place renderer: one place record as a postcard, for Raku (PLACE_TILES; publish.mjs --place)
+//   place-renderer  "Places", the place renderer: one place record as a postcard, for Raku (PLACE_TILES; publish.mjs --place)
 // The isometric step 1 (the frozen snapshot) has its own settings in iso/tiles.mjs (publish.mjs --iso).
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, extname } from 'node:path';
@@ -64,7 +64,9 @@ export const WAY_TILES = { ...TILES, ...FOREST_TILES };
 // postcard, given the record by its host over the tiles spec's data protocol. Raku pins it (RENDERERS in Raku's
 // src/config.js) and opens it for place addresses. Published on its own with publish.mjs --place; no ways of its own.
 export const PLACE_TILES = {
-  places: {
+  // Its id is not "places": published.json already uses that key for the place records (Nov 6: the first publish
+  // under that id overwrote them; repaired by hand).
+  'place-renderer': {
     name: 'Places',
     description: "Shows a place (a cafe.thunderbird.way.place record) as a postcard: its name, who made it, and a way into the tile behind it. A place keeps one address while its tile is replaced. Raku opens this when you open a place's address.",
     sizing: { width: 640, height: 480 },

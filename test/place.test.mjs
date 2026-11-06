@@ -6,8 +6,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readPlace, byLine, formatDate, PLACE } from '../place/tile/view.js';
-import { runPublish, ACCOUNT, PLACE as PLACE_NSID } from '../scripts/publish.mjs';
-import { PLACE_TILES, ROOT } from '../scripts/tiles.mjs';
+import { runPublish, ACCOUNT, PLACE as PLACE_NSID, RESERVED_KEYS } from '../scripts/publish.mjs';
+import { TILES, FOREST_TILES, PLACE_TILES, ROOT } from '../scripts/tiles.mjs';
+import { ISO_TILES } from '../iso/tiles.mjs';
 import { createFakePds } from './fake-pds.mjs';
 
 const FOREST = 'at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3myxm45elkp22';
@@ -77,12 +78,17 @@ test('the page: its policy keeps it off the network; the data protocol comes fro
   assert.ok(js.indexOf('addDataHandler(onPayload)') < js.indexOf('api.listen()'), 'the handler is added before listen() (data.js buffers nothing)');
   assert.match(js, /sendData\(\{ open: view\.tile \}\)/, 'the one thing it sends: open the tile (RT5)');
   assert.ok(!/innerHTML/.test(js), 'drawn with DOM calls only');
-  for (const f of PLACE_TILES.places.files) assert.ok(readFileSync(join(ROOT, 'place', 'tile', f)).length > 0, f);
+  for (const f of PLACE_TILES['place-renderer'].files) assert.ok(readFileSync(join(ROOT, 'place', 'tile', f)).length > 0, f);
 });
 
 test('--place: one tile from thunderbird.cafe, with its card pictures; no place, signposts or lexicons', async () => {
   const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
-  let published = { maze: { uri: 'at://did:plc:rqbqpaaluty5v47jwciowpik/ing.dasl.masl/3myyjuyr2ja2s', cid: 'bafy-maze' } };
+  // the file as it was before the first publish: the place records' bookkeeping under "places" must survive
+  const placesBefore = {
+    'winter-forest': { uri: `at://${ACCOUNT}/${PLACE_NSID}/winter-forest`, cid: 'bafy-p1', tile: `at://${ACCOUNT}/ing.dasl.masl/3myxm45elkp22`, tileCid: 'bafy-f', updatedAt: '2026-10-28T20:36:27.450Z' },
+    maze: { uri: `at://did:plc:rqbqpaaluty5v47jwciowpik/${PLACE_NSID}/maze`, cid: 'bafy-p2', tile: 'at://did:plc:rqbqpaaluty5v47jwciowpik/ing.dasl.masl/3myyjuyr2ja2s', tileCid: 'bafy-m', updatedAt: '2026-10-29T05:29:18.784Z' },
+  };
+  let published = { maze: { uri: 'at://did:plc:rqbqpaaluty5v47jwciowpik/ing.dasl.masl/3myyjuyr2ja2s', cid: 'bafy-maze' }, places: structuredClone(placesBefore), signposts: { 'winter-forest.slide': { uri: 'x' } } };
   const logs = [];
   const opts = {
     fetchImpl: pds.fetchImpl, log: (s) => logs.push(s), ask: async () => 'y', askHidden: async () => 'right-password',
@@ -90,11 +96,11 @@ test('--place: one tile from thunderbird.cafe, with its card pictures; no place,
     now: () => '2026-11-05T12:00:00.000Z', tiles: PLACE_TILES,
   };
   const dry = await runPublish({ ...opts, dryRun: true });
-  assert.deepEqual(dry.plan.map((t) => t.id), ['places']);
+  assert.deepEqual(dry.plan.map((t) => t.id), ['place-renderer']);
   assert.deepEqual([dry.lexiconsDue, dry.placesDue, dry.signpostsDue], [[], [], []]);
   const r = await runPublish(opts);
   assert.equal(r.changed, true);
-  const p = published.places;
+  const p = published['place-renderer'];
   assert.match(p.uri, new RegExp(`^at://${ACCOUNT}/ing.dasl.masl/`));
   assert.ok(p.cid, 'its record CID, for Raku\'s pin');
   const value = pds.records.get(`ing.dasl.masl/${p.uri.split('/').pop()}`).value;
@@ -104,7 +110,27 @@ test('--place: one tile from thunderbird.cafe, with its card pictures; no place,
   assert.deepEqual(value.tile.icons, [{ src: '/icon.png' }]);
   assert.deepEqual(value.tile.screenshots, [{ src: '/banner.png' }]);
   assert.equal(published.maze.uri, 'at://did:plc:rqbqpaaluty5v47jwciowpik/ing.dasl.masl/3myyjuyr2ja2s', 'the maze\'s entry untouched');
+  assert.deepEqual(published.places, placesBefore, 'the place records\' bookkeeping untouched');
+  assert.deepEqual(published.signposts, { 'winter-forest.slide': { uri: 'x' } }, 'the signposts\' too');
+  assert.ok(!logs.some((l) => /earlier record/.test(l)), 'a first publish has no earlier record');
   assert.ok(!pds.calls.some((c) => /putRecord/.test(c)), 'no place written');
   assert.ok(logs.some((l) => l.includes(`RENDERERS: uri '${p.uri}', cid '${p.cid}'`)), 'it prints the pin for Raku');
   assert.ok(!logs.some((l) => /signpost|lexicon/i.test(l)), 'nothing about ways');
+});
+
+test('no tile may be called after one of published.json\'s own headings; publishing one is refused', async () => {
+  for (const list of [TILES, FOREST_TILES, PLACE_TILES, ISO_TILES]) {
+    for (const id of Object.keys(list)) assert.ok(!RESERVED_KEYS.includes(id), `tile id "${id}"`);
+  }
+  const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
+  const bad = { places: { ...PLACE_TILES['place-renderer'] } };
+  await assert.rejects(runPublish({ fetchImpl: pds.fetchImpl, log: () => {}, ask: async () => 'y', askHidden: async () => 'right-password',
+    readPublished: () => ({}), writePublished: () => { throw new Error('must not write'); }, checkBundle: async () => {}, tiles: bad, dryRun: true }),
+  /can't be called "places"/);
+});
+
+test('the published.json in this folder: the place records and the renderer each under their own heading', () => {
+  const pj = JSON.parse(readFileSync(join(ROOT, 'published.json'), 'utf8'));
+  assert.ok(pj.places && pj.places['winter-forest'] && pj.places.maze, 'the place records\' bookkeeping');
+  if (pj['place-renderer']) assert.match(pj['place-renderer'].uri, new RegExp(`^at://${ACCOUNT}/ing\\.dasl\\.masl/`));
 });

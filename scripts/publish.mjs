@@ -107,6 +107,9 @@ export async function bundleCurrent(id = 'maze', tiles = TILES) {
 }
 const bundleName = (t) => (t.bundle === 'forest' ? { file: 'forest\\tile\\forest.js', src: 'forest\\src\\', cmd: 'npm run build-forest' } : { file: 'tile\\maze.js', src: 'src\\', cmd: 'npm run build' });
 
+// published.json's own headings (beside one heading per tile): never usable as a tile's id.
+export const RESERVED_KEYS = ['places', 'signposts', 'lexicons', 'accounts', 'earlier'];
+
 export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = console.log, dryRun = false, again = false, tiles = TILES,
   checkBundle = bundleCurrent,
   readPublished = () => (existsSync(PUBLISHED_FILE) ? JSON.parse(readFileSync(PUBLISHED_FILE, 'utf8')) : {}),
@@ -121,6 +124,10 @@ export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = cons
   const handle = aka ? aka.slice(5) : did;
 
   const published = readPublished() || {};
+  // A tile's id is also its heading in published.json, so it may never be one of the file's own headings (Nov 6: a
+  // tile named "places" overwrote the place records' bookkeeping).
+  const taken = Object.keys(tiles).filter((id) => RESERVED_KEYS.includes(id));
+  if (taken.length) throw new Error(`A tile can't be called ${taken.map((k) => `"${k}"`).join(', ')}: published.json uses that name for its own bookkeeping. Rename it in scripts/tiles.mjs.`);
   const todo = [];
   const here = (id) => published[id] && didOfUri(published[id].uri) === did;      // published, and from this account
   for (const id of Object.keys(tiles)) if (again || !here(id)) todo.push(await tileToPublish(id, tiles));
