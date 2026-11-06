@@ -20,20 +20,10 @@
     "publishedAt": "2026-10-29T05:29:16.126Z"
   },
   "places": {
-    "winter-forest": {
-      "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.place/winter-forest",
-      "cid": "bafyreifaglqlunbgrp7ehjsfgju6v7foyuvsxnnwzl3ouvw6xhh6himq6e",
-      "tile": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3myxm45elkp22",
-      "tileCid": "bafyreifahwnqqfnfxeqgkvq7sbnbxspne2nw5hrccoskrfuadn2rsudura",
-      "updatedAt": "2026-10-28T20:36:27.450Z"
-    },
-    "maze": {
-      "uri": "at://did:plc:rqbqpaaluty5v47jwciowpik/cafe.thunderbird.way.place/maze",
-      "cid": "bafyreiegzkwujelmekaqalibi675ewyrjhdjtzhhexhwro3447gxlr2rua",
-      "tile": "at://did:plc:rqbqpaaluty5v47jwciowpik/ing.dasl.masl/3myyjuyr2ja2s",
-      "tileCid": "bafyreigfeq5q5ba4ba2jkckcn7sarurbrmnpfssmacakujbcecultm77tu",
-      "updatedAt": "2026-10-29T05:29:18.784Z"
-    }
+    "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3mznn4ogtza2s",
+    "cid": "bafyreibw7fq7qy677hy2sxh3hxw724xv2pnyxotxddie5m26cy2hntfaqu",
+    "manifestCid": "bafyreigrpa7rdyxydhp3uyzbwxmxxckergpcbvfjj4dcppxqvwjgx6p7gm",
+    "publishedAt": "2026-11-06T14:53:10.516Z"
   },
   "signposts": {
     "winter-forest.wardrobe": {
