@@ -82,6 +82,7 @@ swoop through doorways become quick fades. Nothing is saved: a reload starts aga
 - `iso\` the isometric step 1, frozen: its own tile, map copy, dev page (`npm run dev-iso`,
   http://127.0.0.1:5201/), tests (part of `npm test`) and publish settings. Not published unless you choose to.
 - `lab\` the over-the-shoulder look test (open `lab\shoulder-test.html`), built from the frozen map.
+- `place\` the place renderer, a tile that shows one place record for Raku: "Places" below.
 
 ## Changing the rooms
 
@@ -213,3 +214,48 @@ changed. `--forest --again` publishes a new record and moves the place to it; si
   the wardrobe hidden from the clearing; the library (up the stairs to the nook, the mezzanine's edge, the bench and
   the little door, the doors in and out, the camera), the tunnel (in, to the door, out), the ice run's way. `forest\test\browser\check.mjs` tries
   it all in a browser (run in the build chat).
+
+## Places (`place\`): the place renderer
+
+A tile that shows one place record (`cafe.thunderbird.way.place`) as a postcard: the place's name, who made it and
+when, a **Step into <name>** button, and "The tile behind it" with the tile's `at://` address. Raku opens it when
+someone opens a place's own address (`at://pyxorium.com/cafe.thunderbird.way.place/maze`); it plays no part in
+walking between tiles. Plan: claude/raku-renderer-tiles-plan.md in the Foundry project (RT1 to RT9) and its mockup
+claude/raku-place-renderer-mockup.html.
+
+- **How it gets the record (RT1):** the tiles spec's data protocol (tp-data). The tile loads its host's
+  `/.well-known/web-tiles/data.js` (never bundled: each host serves its own), adds its handler, then calls `listen()`;
+  the host answers "ready" with one payload `{ uri, cid, did, handle, collection, rkey, value }`, the record as
+  stored (RT4). So any host that speaks tp-data can use it, not only Raku.
+- **The one thing it sends (RT5):** "Step into" sends `{ open: "at://…/ing.dasl.masl/…" }` (the place's tile). The
+  tile can't tell whether its host opened anything, so a quiet line then says "If nothing opens, copy the address
+  below into Raku."
+- **Other states (RT6):** "Waiting for a place…"; no record within 3 s, or opened on its own: "This tile shows
+  places." (naming no place); a record of another kind: "This isn't a place."; a place pointing at no tile: no button.
+- **The look (RT7):** the travel pages', light only. The `:root` line of `place\tile\place.css` is the same as
+  `site\way.css`'s; `test\place.test.mjs` fails if they drift, so change both together.
+- `place\tile\` the tile: `index.html` (its policy: nothing reaches the network), `place.js` (drawing and the data
+  protocol), `view.js` (what to show for a payload; no DOM, tested in Node), `place.css`, `icon.png`, `banner.png`.
+- **The card pictures:** a carved door (owner, Nov 5: its stepped carved band curving like the cornice of a carved
+  door, raised in the centre, dipping, rising near the ends, falling slightly at the tips; hanging beads; studded
+  pilasters, round bases, a scalloped plinth; the arch plain cream), in the travel pages' blue and cream. To redraw,
+  open `place\dev\card-art.html` in a browser (no server needed) and save both pictures into `place\tile\`. The
+  choices: claude/place-renderer-door-sheet.html in the Foundry project.
+- `npm run dev-place`: http://127.0.0.1:5220/ holds the tile in a stand-in host that answers "ready" with a sample
+  (Winter Forest, the Escher maze, a long name, a place with no tile, a record that isn't a place, or nothing) and
+  logs what the tile asks; Phone narrows it.
+- `test\place.test.mjs` (part of `npm test`): the view, the colours kept in step, the page, publishing with `--place`.
+  `test\browser\check_place.mjs` tries every state through the stand-in host (run in the build chat). Raku's
+  `test\browser\check_renderer.py` runs it through the real tile loader.
+
+**Publishing it** (`--place`: this tile only; no place, signposts or lexicons), in `C:\thunderbird-cafe\maze-tiles`:
+
+```
+node scripts/publish.mjs --place --dry-run
+node scripts/publish.mjs --place
+```
+
+From thunderbird.cafe (it asks for a thunderbird.cafe app password). At the end it prints the pin for Raku: the
+tile's `uri` and record `cid`, which go in `RENDERERS` in `C:\thunderbird-cafe\raku\src\config.js` before Raku is
+pushed ("publish and pin before pushing"). `--place --again` publishes a new record after a change; Raku's pin must
+then move too, or Raku refuses the changed tile.

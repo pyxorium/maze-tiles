@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Places: card art</title>
+<style>
+  body { margin: 0; padding: 20px; background: #d9d6cf; color: #222; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 6px; }
+  p { margin: 0 0 12px; max-width: 900px; }
+  .row { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; margin: 14px 0; }
+  .cell { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  canvas { background: repeating-conic-gradient(#ccc 0 25%, #eee 0 50%) 0 0 / 16px 16px; border-radius: 6px; max-width: 100%; height: auto; }
+  #banner { width: 640px; }
+  button { font: inherit; padding: 6px 14px; border-radius: 7px; border: 1px solid #999; background: #fff; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>Places: card art</h1>
+<p>The place renderer's card pictures, drawn from the door motif chosen Nov 5 (A with B's hanging beads, the carved band with gentle wings: claude/place-renderer-door-sheet.html in the Foundry project). Open this file in a browser (it needs no server), check the two pictures, then save each into <code>place\tile\</code> under the name on its button. The banner's words use your system's fonts.</p>
+<div class="row">
+  <div class="cell"><canvas id="icon" width="256" height="256"></canvas><button id="saveIcon" type="button">Save icon.png</button></div>
+  <div class="cell"><canvas id="banner" width="1280" height="720"></canvas><button id="saveBanner" type="button">Save banner.png</button></div>
+</div>
+<script>
+const C = { bg: '#eee7d7', ink: '#2f2a26', soft: '#6b6157', card: '#fbf8f1', line: '#d8ccb2', acc: '#4260b0', deep: '#2f4a8f' };
+
+// ---- shared pieces (all in a 256 x 256 box) ----
+const dots = (xs, ys, r, fill) => xs.flatMap((x) => ys.map((y) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}"/>`)).join('');
+const range = (a, b, step) => { const out = []; for (let v = a; v <= b + 0.001; v += step) out.push(+v.toFixed(2)); return out; };
+function cornice({ x0 = 40, x1 = 216, y = 30, beads = false, steps = 11, style = 'teeth' }) {
+  const w = x1 - x0;
+  let s = `<rect x="${x0}" y="${y + 12}" width="${w}" height="14" rx="2" fill="${C.deep}"/>`;           // the band
+  const step = w / steps;
+  if (style === 'teeth') {
+    for (let i = 0; i < steps; i++) if (i % 2 === 0) s += `<rect x="${x0 + i * step + 1}" y="${y}" width="${step - 2}" height="13" rx="1.5" fill="${C.acc}"/>`; // the steps
+  } else {
+    // a carved frieze: small stepped mounds, joined, rising 7 px above the band in two steps
+    const n = 14, u = w / n;
+    let d = `M${x0} ${y + 13}`;
+    for (let i = 0; i < n; i++) {
+      const a = x0 + i * u;
+      d += ` H${(a + u * 0.18).toFixed(1)} V${y + 9.5} H${(a + u * 0.32).toFixed(1)} V${y + 6} H${(a + u * 0.68).toFixed(1)} V${y + 9.5} H${(a + u * 0.82).toFixed(1)} V${y + 13}`;
+    }
+    d += ` H${x1} V${y + 14} H${x0} Z`;
+    s += `<path d="${d}" fill="${C.acc}"/>`;
+    s += dots(range(x0 + u / 2, x1 - u / 2, u), [y + 20], 1.8, C.card);   // a bead of carving under each mound
+  }
+  s += `<rect x="${x0 + 6}" y="${y + 17}" width="${w - 12}" height="2.4" fill="${C.card}" opacity=".55"/>`;  // a carved line
+  if (beads) for (const x of range(x0 + 14, x1 - 14, 12)) s += `<line x1="${x}" y1="${y + 26}" x2="${x}" y2="${y + 32}" stroke="${C.deep}" stroke-width="1.6"/><circle cx="${x}" cy="${y + 34.5}" r="3" fill="${C.acc}"/>`;
+  return s;
+}
+// The cornice's profile (owner, Nov 5): from the middle outward, raised in the centre, dipping on both sides, rising
+// again near both ends, then falling very slightly at the outer tips. h(|t|) is the height (1 = highest), joined
+// smoothly between the points; off(x) is how far below the highest line the band sits there.
+const PROFILE = [[0, 1], [0.42, 0], [0.84, 1], [1, 0.72]];
+function wingOff(x, { x0 = 34, x1 = 222, amp = 9 } = {}) {
+  const t = Math.min(1, Math.abs((x - (x0 + x1) / 2) / ((x1 - x0) / 2)));
+  for (let i = 1; i < PROFILE.length; i++) {
+    const [ta, ha] = PROFILE[i - 1], [tb, hb] = PROFILE[i];
+    if (t <= tb) { const k = (t - ta) / (tb - ta), e = (1 - Math.cos(Math.PI * k)) / 2; return amp * (1 - (ha + (hb - ha) * e)); }
+  }
+  return amp * (1 - PROFILE[PROFILE.length - 1][1]);
+}
+function corniceWing({ x0 = 34, x1 = 222, y = 30, amp = 9 }) {
+  const off = (x) => wingOff(x, { x0, x1, amp });
+  const N = 80, xs = range(x0, x1, (x1 - x0) / N);
+  const pt = (x, dy) => `${x.toFixed(1)} ${(y + dy + off(x)).toFixed(1)}`;
+  let band = `M${pt(x0, 12)}`;
+  for (const x of xs) band += ` L${pt(x, 12)}`;
+  for (const x of [...xs].reverse()) band += ` L${pt(x, 26)}`;
+  band += ' Z';
+  let s = `<path d="${band}" fill="${C.deep}"/>`;
+  let line = `M${pt(x0 + 6, 18.2)}`; for (const x of xs.filter((v) => v > x0 + 6 && v < x1 - 6)) line += ` L${pt(x, 18.2)}`; line += ` L${pt(x1 - 6, 18.2)}`;
+  s += `<path d="${line}" fill="none" stroke="${C.card}" stroke-opacity=".55" stroke-width="2.4"/>`;
+  const n = 15, u = (x1 - x0) / n;
+  let d = `M${pt(x0, 13)}`;
+  for (let i = 0; i < n; i++) {
+    const a = x0 + i * u, m = a + u / 2, ym = (dy) => (y + dy + off(m)).toFixed(1);
+    d += ` L${pt(a + u * 0.18, 13)} L${(a + u * 0.18).toFixed(1)} ${ym(9.5)} L${(a + u * 0.32).toFixed(1)} ${ym(9.5)}`;
+    d += ` L${(a + u * 0.32).toFixed(1)} ${ym(6)} L${(a + u * 0.68).toFixed(1)} ${ym(6)}`;
+    d += ` L${(a + u * 0.68).toFixed(1)} ${ym(9.5)} L${(a + u * 0.82).toFixed(1)} ${ym(9.5)} L${pt(a + u * 0.82, 13)}`;
+  }
+  d += ` L${pt(x1, 13)} L${pt(x1, 14)}`;
+  for (const x of [...xs].reverse()) d += ` L${pt(x, 14)}`;
+  d += ' Z';
+  s += `<path d="${d}" fill="${C.acc}"/>`;
+  for (let i = 0; i < n; i++) { const m = x0 + i * u + u / 2; s += `<circle cx="${m.toFixed(1)}" cy="${(y + 20 + off(m)).toFixed(1)}" r="1.8" fill="${C.card}"/>`; }
+  for (const x of range(86, 170, 12)) {
+    const b = y + 26 + off(x);
+    s += `<line x1="${x}" y1="${b.toFixed(1)}" x2="${x}" y2="${(b + 6).toFixed(1)}" stroke="${C.deep}" stroke-width="1.6"/><circle cx="${x}" cy="${(b + 8.5).toFixed(1)}" r="3" fill="${C.acc}"/>`;
+  }
+  return s;
+}
+// The pilasters reach up to the band: their tops sit at the band's lowest edge's highest point over their width.
+const pilasterTop = (y, amp, x0 = 52, x1 = 76) => Math.min(...range(x0, x1, 1).map((x) => y + 26 + wingOff(x, { amp }))) - 0.5;
+// The arch's top clears the lowest bead over the doorway.
+const archTop = (y, amp) => Math.ceil(Math.max(...range(86, 170, 12).map((x) => y + 26 + wingOff(x, { amp }) + 11.5))) + 4;
+function pilasters({ xL = 52, xR = 180, w = 24, y0 = 56, y1 = 190, studs = true }) {
+  let s = '';
+  for (const x of [xL, xR]) {
+    s += `<rect x="${x}" y="${y0}" width="${w}" height="${y1 - y0}" rx="2" fill="${C.acc}"/>`;
+    s += `<rect x="${x + 3}" y="${y0 + 4}" width="${w - 6}" height="${y1 - y0 - 8}" rx="1.5" fill="none" stroke="${C.deep}" stroke-width="1.5"/>`;
+    if (studs) s += dots([x + w / 2], range(y0 + 14, y1 - 12, 13), 3, C.card);
+  }
+  return s;
+}
+function bases({ xs = [64, 192], y = 196 }) {
+  return xs.map((x) => `<ellipse cx="${x}" cy="${y}" rx="17" ry="13" fill="${C.deep}"/><ellipse cx="${x}" cy="${y - 2}" rx="11" ry="6" fill="${C.acc}"/>`).join('');
+}
+function plinth({ x0 = 38, x1 = 218, y = 208 }) {
+  // a band with a scalloped lower edge: three soft scallops
+  const w = x1 - x0, k = w / 3;
+  let d = `M${x0} ${y} H${x1} V${y + 10}`;
+  for (let i = 3; i > 0; i--) { const xa = x0 + i * k, xb = x0 + (i - 1) * k; d += ` Q${(xa + xb) / 2} ${y + 26} ${xb} ${y + 10}`; }
+  d += ' Z';
+  return `<path d="${d}" fill="${C.deep}"/><rect x="${x0 + 8}" y="${y + 3}" width="${w - 16}" height="2.2" fill="${C.card}" opacity=".5"/>`;
+}
+function archOpening({ x0, x1, top, base, fill = C.card, edge = C.deep }) {
+  const r = (x1 - x0) / 2;
+  return `<path d="M${x0} ${base} V${top + r} A${r} ${r} 0 0 1 ${x1} ${top + r} V${base} Z" fill="${fill}" stroke="${edge}" stroke-width="2.5"/>`;
+}
+function barredWindow(x, y, w, h) {
+  let s = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.5" fill="${C.card}"/>`;
+  for (const bx of range(x + 4, x + w - 3, 5)) s += `<line x1="${bx}" y1="${y + 1}" x2="${bx}" y2="${y + h - 1}" stroke="${C.ink}" stroke-width="1.6"/>`;
+  return s;
+}
+function leaves({ x0 = 84, x1 = 172, top = 66, base = 206 }) {
+  const mid = (x0 + x1) / 2, lw = mid - x0 - 2;
+  let s = `<rect x="${x0 - 3}" y="${top - 3}" width="${x1 - x0 + 6}" height="${base - top + 3}" fill="${C.deep}"/>`;
+  for (const lx of [x0, mid + 1]) {
+    s += `<rect x="${lx}" y="${top}" width="${lw + 1}" height="${base - top}" fill="${C.acc}"/>`;
+    s += `<rect x="${lx + 4}" y="${top + 4}" width="${lw - 7}" height="${base - top - 8}" fill="none" stroke="${C.card}" stroke-width="1.4" opacity=".55"/>`;
+    s += barredWindow(lx + 8, top + 34, lw - 15, 26);
+    s += dots(range(lx + 10, lx + lw - 8, 9.5), range(top + 76, base - 14, 14), 1.8, C.card);   // studs
+  }
+  s += `<line x1="${mid}" y1="${top + 4}" x2="${mid}" y2="${top + 20}" stroke="${C.ink}" stroke-width="2.4"/><ellipse cx="${mid}" cy="${top + 27}" rx="4.5" ry="7" fill="none" stroke="${C.ink}" stroke-width="2.4"/>`;  // the hasp
+  return s;
+}
+
+
+// ---- the chosen door (the sheet's "A + B's beads · carved band, gentle wings") ----
+const door = () => pilasters({ y0: pilasterTop(30, 9) }) + corniceWing({ y: 30, amp: 9 }) + bases({}) + archOpening({ x0: 84, x1: 172, top: archTop(30, 9), base: 208 }) + plinth({});
+// The icon: the door on a cream tile with rounded corners (transparent outside them).
+const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" rx="48" fill="${C.bg}"/>${door()}</svg>`;
+// The banner: what the tile shows, in words, with the door on the right.
+const F = 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+const BANNER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="${C.bg}"/>
+  <text x="150" y="228" font-family="${F}" font-weight="700" font-size="80" fill="${C.ink}">Places</text>
+  <text x="150" y="288" font-family="${F}" font-size="34" fill="${C.soft}">A postcard for any place in a web of tiles.</text>
+  <rect x="150" y="328" width="470" height="84" rx="42" fill="${C.acc}"/>
+  <text x="385" y="381" text-anchor="middle" font-family="${F}" font-weight="700" font-size="32" fill="#fff">Step into the place</text>
+  <rect x="150" y="466" width="660" height="160" rx="28" fill="${C.card}" stroke="${C.line}" stroke-width="2"/>
+  <text x="186" y="518" font-family="${F}" font-size="24" fill="${C.soft}" letter-spacing="1.5">THE TILE BEHIND IT</text>
+  <rect x="186" y="542" width="588" height="54" rx="14" fill="#f1ebdd"/>
+  <text x="204" y="578" font-family="ui-monospace, Consolas, Menlo, monospace" font-size="28" fill="${C.ink}">at://…/ing.dasl.masl/…</text>
+  <g transform="translate(${1060 - 128 * 1.7} ${372 - 128 * 1.7}) scale(1.7)">${door()}</g>
+</svg>`;
+
+function paint(canvas, svg) {
+  return new Promise((ok, fail) => {
+    const img = new Image();
+    img.onload = () => { const g = canvas.getContext('2d'); g.clearRect(0, 0, canvas.width, canvas.height); g.drawImage(img, 0, 0, canvas.width, canvas.height); ok(); };
+    img.onerror = fail;
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+function save(canvas, name) {
+  canvas.toBlob((b) => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }, 'image/png');
+}
+const icon = document.getElementById('icon'), banner = document.getElementById('banner');
+window.cardArtReady = Promise.all([paint(icon, ICON_SVG), paint(banner, BANNER_SVG)]);
+document.getElementById('saveIcon').onclick = () => save(icon, 'icon.png');
+document.getElementById('saveBanner').onclick = () => save(banner, 'banner.png');
+// for the build chat: the two pictures as PNG data
+window.cardArtPngs = async () => { await window.cardArtReady; return { icon: icon.toDataURL('image/png'), banner: banner.toDataURL('image/png') }; };
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+/* place.css: the place renderer, in the travel pages' look (RT7: light only). The :root line is the same as
+   site\way.css's (test/place.test.mjs checks they match): change both together. */
+:root { --bg: #eee7d7; --ink: #2f2a26; --soft: #6b6157; --card: #fbf8f1; --line: #d8ccb2; --accent: #4260b0; }
+:root { --code: #f1ebdd; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); min-height: 100%; }
+body { font: 17px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.place { max-width: 760px; margin: 0 auto; padding: 48px 20px 64px; box-sizing: border-box; }
+.place h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; overflow-wrap: anywhere; }
+.place p { margin: 0; }
+.place .by, .place .small, .place .wait, .place .after { color: var(--soft); font-size: 15px; }
+.place .small { margin-top: 14px; }
+.place .go { font: inherit; font-weight: 600; cursor: pointer; border: 0; background: var(--accent); color: #fff;
+  padding: 9px 20px; border-radius: 999px; margin: 22px 0 0; max-width: 100%; }
+.place .go:hover { filter: brightness(1.08); }
+.place .go:focus-visible { outline: 3px solid #ffd28a; outline-offset: 2px; }
+.place .after { margin-top: 10px; }
+.place .after[hidden] { display: none; }
+.place .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 28px 0 0; }
+.place .label { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--soft); }
+.place code { display: block; margin: 10px 0 0; font: 14px/1.45 ui-monospace, Consolas, "Cascadia Mono", monospace; background: var(--code);
+  border-radius: 8px; padding: 8px 10px; overflow-wrap: anywhere; color: var(--ink); user-select: all; }
+@media (max-width: 640px) {
+  .place { padding: 32px 16px 48px; }
+  .place h1 { font-size: 25px; }
+  .place .go { width: 100%; }
+}

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Place renderer: stand-in host</title>
+<style>
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #2b2b2b; color: #eee; }
+  header { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 10px 14px; }
+  header b { color: #fff; }
+  button { font: inherit; color: #eee; background: #444; border: 1px solid #5a5a5a; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  button[aria-pressed="true"] { background: #ffd28a; color: #1b1406; border-color: #ffd28a; }
+  .wrap { display: flex; gap: 14px; padding: 0 14px 14px; flex-wrap: wrap; }
+  iframe { flex: 1 1 520px; height: 560px; border: 0; border-radius: 8px; background: #fff; }
+  iframe.phone { flex: 0 0 390px; height: 700px; }
+  #log { flex: 1 1 260px; margin: 0; background: #1d1d1d; border-radius: 8px; padding: 10px; white-space: pre-wrap; font: 12px ui-monospace, monospace; min-height: 200px; }
+</style>
+</head>
+<body>
+<header>
+  <span><b>Send</b></span>
+  <button data-s="forest" aria-pressed="true">Winter Forest</button>
+  <button data-s="maze">Escher maze</button>
+  <button data-s="long">A long name, no handle</button>
+  <button data-s="notile">Points at no tile</button>
+  <button data-s="like">Not a place</button>
+  <button data-s="none">Nothing (no host)</button>
+  <span><b>Width</b></span>
+  <button id="w">Phone</button>
+</header>
+<div class="wrap">
+  <iframe id="f" title="Place renderer" src="/tile/index.html"></iframe>
+  <pre id="log"></pre>
+</div>
+<script>
+const SAMPLES = {
+  forest: { uri: 'at://did:plc:6vxjigxrqizmbo56gojxico3/cafe.thunderbird.way.place/winter-forest', cid: 'bafyreifaglqlunbgrp7ehjsfgju6v7foyuvsxnnwzl3ouvw6xhh6himq6e',
+    did: 'did:plc:6vxjigxrqizmbo56gojxico3', handle: 'thunderbird.cafe', collection: 'cafe.thunderbird.way.place', rkey: 'winter-forest',
+    value: { $type: 'cafe.thunderbird.way.place', tile: 'at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3myxm45elkp22', cid: 'bafyreifahwnqqfnfxeqgkvq7sbnbxspne2nw5hrccoskrfuadn2rsudura', name: 'Winter Forest', updatedAt: '2026-10-28T20:36:27.450Z' } },
+  maze: { uri: 'at://did:plc:rqbqpaaluty5v47jwciowpik/cafe.thunderbird.way.place/maze', cid: 'bafyreiegzkwujelmekaqalibi675ewyrjhdjtzhhexhwro3447gxlr2rua',
+    did: 'did:plc:rqbqpaaluty5v47jwciowpik', handle: 'pyxorium.com', collection: 'cafe.thunderbird.way.place', rkey: 'maze',
+    value: { $type: 'cafe.thunderbird.way.place', tile: 'at://did:plc:rqbqpaaluty5v47jwciowpik/ing.dasl.masl/3myyjuyr2ja2s', cid: 'bafyreigfeq5q5ba4ba2jkckcn7sarurbrmnpfssmacakujbcecultm77tu', name: 'Escher maze', updatedAt: '2026-10-29T05:29:18.784Z' } },
+  long: { uri: 'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/cafe.thunderbird.way.place/library', cid: 'bafyreisample', did: 'did:plc:aaaaaaaaaaaaaaaaaaaaaaaa', handle: null,
+    collection: 'cafe.thunderbird.way.place', rkey: 'library',
+    value: { tile: 'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/ing.dasl.masl/3mzzzzzzzzzzz', cid: 'bafy', name: 'The Lantern-Lit Library Beneath the Frozen Lake of Many Doors', updatedAt: '2026-11-05T10:00:00Z' } },
+  notile: { uri: 'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/cafe.thunderbird.way.place/empty', cid: 'bafy', did: 'did:plc:aaaaaaaaaaaaaaaaaaaaaaaa', handle: 'someone.example',
+    collection: 'cafe.thunderbird.way.place', rkey: 'empty', value: { tile: 'https://example.com/', name: 'An empty lot', updatedAt: '2026-11-05T10:00:00Z' } },
+  like: { uri: 'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.like/3abc', cid: 'bafy', did: 'did:plc:aaaaaaaaaaaaaaaaaaaaaaaa', handle: 'someone.example',
+    collection: 'app.bsky.feed.like', rkey: '3abc', value: { subject: {} } },
+  none: null,
+};
+let pick = 'forest';
+const f = document.getElementById('f'), log = document.getElementById('log');
+const say = (s) => { log.textContent = `${new Date().toLocaleTimeString()}  ${s}\n` + log.textContent; };
+addEventListener('message', (e) => {
+  if (e.source !== f.contentWindow || !e.data || typeof e.data.action !== 'string') return;
+  if (e.data.action === 'tiles-protocol-up-data-ready') {
+    say('tile: ready');
+    if (SAMPLES[pick]) { f.contentWindow.postMessage({ action: 'tiles-protocol-down-data-payload', payload: SAMPLES[pick] }, '*'); say(`host: sent ${pick}`); }
+    else say('host: (sending nothing: the tile should say it shows places after 3 s)');
+  } else if (e.data.action === 'tiles-protocol-up-data-payload') {
+    say(`tile asks: ${JSON.stringify(e.data.payload)}`);
+  }
+});
+document.querySelectorAll('[data-s]').forEach((b) => b.addEventListener('click', () => {
+  pick = b.dataset.s;
+  document.querySelectorAll('[data-s]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  f.src = '/tile/index.html?' + Date.now();
+}));
+document.getElementById('w').addEventListener('click', (e) => { const on = f.classList.toggle('phone'); e.target.setAttribute('aria-pressed', String(on)); });
+</script>
+</body>
+</html>
