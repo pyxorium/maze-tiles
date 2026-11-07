@@ -38,7 +38,8 @@ test('one place: its tile as a card, with Raku and lexicographer.space links and
   assert.equal(v.doors.length, 1);
   const d = v.doors[0];
   assert.equal(d.name, 'Little hub'); assert.equal(d.description, 'Six stones.'); assert.equal(d.by, 'thunderbird.cafe');
-  assert.equal(d.raku, `https://raku.lexicographer.space/#t=${encodeURIComponent(`at://${ACCOUNT}/ing.dasl.masl/hubtile`)}&a=0`);
+  // RW7 (claude/raku-ways-plan.md): one destination's "Open in Raku" takes the way itself, so Raku arrives at its entrance
+  assert.equal(d.raku, `https://raku.lexicographer.space/#t=${encodeURIComponent(`raku:way/${ACCOUNT}/maze.obelisk`)}&a=0`);
   assert.equal(d.viewer, 'https://lexicographer.space/@thunderbird.cafe/hubtile');
   assert.equal(d.icon, `https://pds.test/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(ACCOUNT)}&cid=${ICON}`);
   assert.equal(d.changed, false);
@@ -58,6 +59,8 @@ test('several: pick a door (a place, a tile directly, and broken ones explained)
   const v = await lookUpWay({ signpost: SIGN, fetchImpl: w.fetchImpl });
   assert.equal(v.doors.length, 5);
   assert.deepEqual(v.doors.map((d) => d.label), ['North', 'East', 'Odd', 'Gone', '']);
+  assert.equal(v.doors[0].raku, `https://raku.lexicographer.space/#t=${encodeURIComponent(`at://${ACCOUNT}/ing.dasl.masl/hubtile`)}&a=0`,
+    'several: each card keeps its own tile\'s link (the way would ask Raku to pick a door again)');
   assert.equal(v.doors[1].name, 'Glass lantern');
   assert.match(v.doors[2].broken, /isn't a place/);
   assert.match(v.doors[3].broken, /couldn't be looked up/);

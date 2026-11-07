@@ -187,7 +187,9 @@ if (run(2)) {
   ok(JSON.stringify(i.statuses) === JSON.stringify({ wardrobe: 'dormant', 'tree-door': 'dormant', arch: 'dormant', slide: 'open' }) && fs.exits.slide === 'open' && fs.exits.arch === 'dormant',
     `the forest is told which ways lead somewhere (only the slide) (${JSON.stringify(fs.exits)})`);
   ok(i.title === 'Winter Forest · thunderbird.cafe', `the tab's title follows (${i.title})`);
-  ok(!i.back && !i.raku, 'the bar: no Back on the first leg, no "Open in Raku" for a ways-only place');
+  // Since Raku learnt ways (claude/raku-ways-plan.md, RW7): "Open in Raku" opens the way just taken, ways-only places too.
+  const rakuWay = (did, key) => `https://raku.lexicographer.space/#t=${encodeURIComponent(`raku:way/${did}/${key}`)}&a=0`;
+  ok(!i.back && i.raku && i.rakuHref === rakuWay(PYXORIUM_DID, 'maze.obelisk'), `the bar: no Back on the first leg; "Open in Raku" takes the way just taken, for a ways-only place too (${i.rakuHref})`);
   ok(/Winter Forest/.test(await page.textContent('.tripbar .where')) && /by @thunderbird\.cafe/.test(await page.textContent('.tripbar .where')), 'the bar: the place\'s name and whose it is');
   ok(i.path === '/way/maze/obelisk/' && i.leg === 0, 'the address: the page you opened');
   const tf = await tileFrame(page, '__forest');
@@ -213,7 +215,7 @@ if (run(2)) {
   ok(ms && ms.room === 'hall' && ms.cell.join() === '3,5' && ms.facing === 'se', `then the maze, beside the obelisk facing down the hall (${ms && ms.room} ${ms && ms.cell})`);
   ok(ms.ways === 'host' && ms.obelisk === 'open', 'the maze is told its obelisk leads somewhere (the test signpost)');
   ok(i.path === '/way/winter-forest/slide/' && i.leg === 1 && (await page.evaluate(() => location.search)).includes('sign='), `the address follows the slide, keeping the test signposts (${i.path})`);
-  ok(i.title === 'Escher maze · thunderbird.cafe' && i.back && i.raku, 'the title follows; the bar has Back and "Open in Raku" (an open place)');
+  ok(i.title === 'Escher maze · thunderbird.cafe' && i.back && i.rakuHref === rakuWay(ACCOUNT, 'winter-forest.slide'), `the title follows; the bar has Back and "Open in Raku", now the slide (${i.rakuHref})`);
   ok(/by @pyxorium\.com/.test(await page.textContent('.tripbar .where')), 'the bar: the maze is pyxorium.com\'s (the forest\'s slide reaching across accounts)');
   ok(i.frames === 1, 'one tile running (the forest is gone)');
   ok(await (await tileFrame(page, '__maze')).evaluate(() => document.hasFocus()), 'the maze has the keys');

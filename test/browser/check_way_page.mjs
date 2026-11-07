@@ -85,7 +85,8 @@ try {
   t = await text(page);
   ok(/This way leads to/.test(t) && /Little hub/.test(t) && /by @thunderbird\.cafe/.test(t) && /six stones/.test(t), 'one place: its tile\'s card (name, author, description)');
   const links = await page.evaluate(() => [...document.querySelectorAll('#way .links a')].map((a) => a.href));
-  ok(links[0] === `https://raku.lexicographer.space/#t=${encodeURIComponent(`at://${ACCOUNT}/ing.dasl.masl/hubtile`)}&a=0` && links[1] === 'https://lexicographer.space/@thunderbird.cafe/hubtile', 'links to open it in Raku and on lexicographer.space');
+  // RW7 (claude/raku-ways-plan.md): "Open in Raku" takes the way itself, so Raku arrives at its entrance
+  ok(links[0] === `https://raku.lexicographer.space/#t=${encodeURIComponent(exit.signpost.replace(/^at:\/\/([^/]+)\/cafe\.thunderbird\.way\.signpost\/(.+)$/, 'raku:way/$1/$2'))}&a=0` && links[1] === 'https://lexicographer.space/@thunderbird.cafe/hubtile', `links to take the way in Raku and to the tile on lexicographer.space (${links[0]})`);
   ok(await page.evaluate(() => { const i = document.querySelector('#way img'); return !!i && i.complete && i.naturalWidth > 0; }), 'its icon, straight from the account\'s server');
   await shot(page, 'way-2-one');
   ok(page.errors.length === 0, `no errors${page.errors.length ? `: ${page.errors.join(' | ')}` : ''}`);
