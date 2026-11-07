@@ -1,0 +1,35 @@
+/* signpost.css: the signpost renderer, in the travel pages' look like Places (light only). The :root line is the same
+   as site\way.css's and place\tile\place.css's (test/signpost.test.mjs checks they match): change them together. */
+:root { --bg: #eee7d7; --ink: #2f2a26; --soft: #6b6157; --card: #fbf8f1; --line: #d8ccb2; --accent: #4260b0; }
+:root { --code: #f1ebdd; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); min-height: 100%; }
+body { font: 17px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.sign { max-width: 760px; margin: 0 auto; padding: 48px 20px 64px; box-sizing: border-box; }
+.sign h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; overflow-wrap: anywhere; }
+.sign p { margin: 0; overflow-wrap: anywhere; }
+.sign .out, .sign .by, .sign .small, .sign .wait, .sign .after { color: var(--soft); font-size: 15px; }
+.sign .note { margin-top: 14px; font-style: italic; }
+.sign .small { margin-top: 14px; }
+.sign .go { font: inherit; font-weight: 600; cursor: pointer; border: 0; background: var(--accent); color: #fff;
+  padding: 9px 20px; border-radius: 999px; margin: 22px 0 0; max-width: 100%; }
+.sign .go.mini { font-size: 15px; padding: 6px 16px; margin: 0; flex: none; }
+.sign .go:hover { filter: brightness(1.08); }
+.sign .go:focus-visible { outline: 3px solid #ffd28a; outline-offset: 2px; }
+.sign .after { margin-top: 10px; }
+.sign .after[hidden] { display: none; }
+.sign .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 28px 0 0; }
+.sign .label { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--soft); }
+.sign .dest { display: flex; gap: 14px; align-items: center; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--line); }
+.sign .label + .dest { border-top: 0; padding-top: 2px; }
+.sign .what { min-width: 0; }
+.sign .name { font-weight: 600; }
+.sign .sub { color: var(--soft); font-size: 15px; margin-top: 2px; }
+.sign .raw { color: var(--soft); font-weight: 400; }
+.sign code { font: 13.5px/1.45 ui-monospace, Consolas, "Cascadia Mono", monospace; background: var(--code); border-radius: 6px;
+  padding: 1px 5px; color: var(--ink); overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .sign { padding: 32px 16px 48px; }
+  .sign h1 { font-size: 25px; }
+  .sign .go { width: 100%; }
+  .sign .dest { flex-direction: column; align-items: stretch; gap: 8px; }
+}

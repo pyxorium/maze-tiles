@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readPlace, byLine, formatDate, PLACE } from '../place/tile/view.js';
 import { runPublish, ACCOUNT, PLACE as PLACE_NSID, RESERVED_KEYS } from '../scripts/publish.mjs';
-import { TILES, FOREST_TILES, PLACE_TILES, ROOT } from '../scripts/tiles.mjs';
+import { TILES, FOREST_TILES, PLACE_TILES, SIGNPOST_TILES, ROOT } from '../scripts/tiles.mjs';
 import { ISO_TILES } from '../iso/tiles.mjs';
 import { createFakePds } from './fake-pds.mjs';
 
@@ -114,12 +114,12 @@ test('--place: one tile from thunderbird.cafe, with its card pictures; no place,
   assert.deepEqual(published.signposts, { 'winter-forest.slide': { uri: 'x' } }, 'the signposts\' too');
   assert.ok(!logs.some((l) => /earlier record/.test(l)), 'a first publish has no earlier record');
   assert.ok(!pds.calls.some((c) => /putRecord/.test(c)), 'no place written');
-  assert.ok(logs.some((l) => l.includes(`RENDERERS: uri '${p.uri}', cid '${p.cid}'`)), 'it prints the pin for Raku');
+  assert.ok(logs.some((l) => l.includes(`RENDERERS ('cafe.thunderbird.way.place'): uri '${p.uri}', cid '${p.cid}'`)), 'it prints the pin for Raku');
   assert.ok(!logs.some((l) => /signpost|lexicon/i.test(l)), 'nothing about ways');
 });
 
 test('no tile may be called after one of published.json\'s own headings; publishing one is refused', async () => {
-  for (const list of [TILES, FOREST_TILES, PLACE_TILES, ISO_TILES]) {
+  for (const list of [TILES, FOREST_TILES, PLACE_TILES, SIGNPOST_TILES, ISO_TILES]) {
     for (const id of Object.keys(list)) assert.ok(!RESERVED_KEYS.includes(id), `tile id "${id}"`);
   }
   const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });

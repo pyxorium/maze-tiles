@@ -10,6 +10,9 @@
 //   place and its four signposts; the maze, its place and its signpost are never touched (M26)
 //   add --place to any of these for the place renderer instead (claude/raku-renderer-tiles-plan.md, RT9): one tile,
 //   no place, signposts or lexicons of its own; after publishing, its address and CID go in Raku's RENDERERS
+//   add --signpost to any of these for the signpost renderer instead (the same plan, SR7): one tile, plus the two
+//   ways lexicons if they've changed (SR5 adds the signpost's optional `name`); no place or signposts; its address and
+//   CID then go in Raku's RENDERERS too
 //
 // Before publishing the 3D maze it checks that tile\maze.js is built from the current src\ (it rebuilds in
 // memory with the Foundry's esbuild and compares); if not, it stops and says to run `npm run build`.
@@ -36,7 +39,7 @@ import readline from 'node:readline';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ROOT, TILES, FOREST_TILES, PLACE_TILES, THUNDERBIRD_DID, publishFiles, cspOf } from './tiles.mjs';
+import { ROOT, TILES, FOREST_TILES, PLACE_TILES, SIGNPOST_TILES, THUNDERBIRD_DID, publishFiles, cspOf } from './tiles.mjs';
 import { ISO_TILES } from '../iso/tiles.mjs';
 import { rawCid } from './lib/cid.js';
 import { publishTile, publishLexicon } from './lib/tile-record.js';
@@ -143,7 +146,8 @@ export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = cons
   // signpost that doesn't exist yet (read from the account, so one you've edited is never overwritten).
   const withWays = Object.keys(tiles).filter((id) => tiles[id].ways);
   const had = published.lexicons || {};
-  const lexiconsDue = withWays.length && did === ACCOUNT ? readLexicons().filter((l) => !had[l.id] || had[l.id].text !== JSON.stringify(l)) : [];
+  const wantsLexicons = withWays.length || Object.values(tiles).some((t) => t.lexicons);
+  const lexiconsDue = wantsLexicons && did === ACCOUNT ? readLexicons().filter((l) => !had[l.id] || had[l.id].text !== JSON.stringify(l)) : [];
   const placesDue = [], signpostsDue = [];
   for (const id of withWays) {
     const w = waysOf(id, tiles);
@@ -227,7 +231,7 @@ export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = cons
     log(`  done: ${r.uri}`);
     log(`  open it: https://raku.lexicographer.space/#t=${encodeURIComponent(r.uri)}&a=0`);
     log(`       or: https://lexicographer.space/@${handle}/${r.rkey}`);
-    if (tiles[t.id].generator === 'Places') log(`  for Raku's src/config.js RENDERERS: uri '${r.uri}', cid '${r.cid}'`);
+    if (tiles[t.id].renderer) log(`  for Raku's src/config.js RENDERERS ('${tiles[t.id].renderer}'): uri '${r.uri}', cid '${r.cid}'`);
   }
   for (const p of placesDue) {
     const tile = out[p.id];
@@ -287,7 +291,7 @@ if (process.argv[1] && resolve(process.argv[1]).toLowerCase() === fileURLToPath(
   const args = process.argv.slice(2);
   const io = makeAsk();
   runPublish({ ask: io.ask, askHidden: io.askHidden, dryRun: args.includes('--dry-run'), again: args.includes('--again'),
-    ...(args.includes('--iso') ? { tiles: ISO_TILES } : args.includes('--forest') ? { tiles: FOREST_TILES } : args.includes('--place') ? { tiles: PLACE_TILES } : {}) })
+    ...(args.includes('--iso') ? { tiles: ISO_TILES } : args.includes('--forest') ? { tiles: FOREST_TILES } : args.includes('--place') ? { tiles: PLACE_TILES } : args.includes('--signpost') ? { tiles: SIGNPOST_TILES } : {}) })
     .catch((err) => { console.error(`\n${err.message}`); process.exitCode = 1; })
     .finally(() => io.close());
 }

@@ -11,6 +11,7 @@
         "type": "object",
         "required": ["to", "updatedAt"],
         "properties": {
+          "name": { "type": "string", "maxLength": 300, "maxGraphemes": 100, "description": "Optional: a name for the exit this signpost belongs to, shown by hosts and renderers (e.g. \"The slide\"). Without one, they make a name from the exit's id." },
           "to": {
             "type": "array",
             "maxLength": 12,

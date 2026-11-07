@@ -2,6 +2,7 @@
 //   maze            the Escher maze over the shoulder: twelve rooms in 3D (TILES; publish.mjs)
 //   winter-forest   Winter Forest, the hub beyond the obelisk (FOREST_TILES; publish.mjs --forest)
 //   place-renderer  "Places", the place renderer: one place record as a postcard, for Raku (PLACE_TILES; publish.mjs --place)
+//   signpost-renderer  "Signposts", the signpost renderer: where one exit leads, for Raku (SIGNPOST_TILES; publish.mjs --signpost)
 // The isometric step 1 (the frozen snapshot) has its own settings in iso/tiles.mjs (publish.mjs --iso).
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, extname } from 'node:path';
@@ -77,6 +78,28 @@ export const PLACE_TILES = {
     screenshot: '/banner.png',
     cardArt: 'open place\\dev\\card-art.html in a browser and save both pictures into place\\tile\\',
     generator: 'Places',
+    renderer: 'cafe.thunderbird.way.place',       // the kind Raku pins it for: publish.mjs prints the pin
+  },
+};
+
+// The signpost renderer (claude/raku-renderer-tiles-plan.md, "The signpost renderer", SR1 to SR7): one signpost record
+// (where one exit of a tile leads) as a postcard, given the record over the data protocol; it asks its host for the
+// records the names come from ({ get }, SR2 and SR6). Raku pins it for signposts. Published on its own with
+// publish.mjs --signpost, which also publishes the ways lexicons when they've changed (SR5 adds the signpost's `name`).
+export const SIGNPOST_TILES = {
+  'signpost-renderer': {
+    name: 'Signposts',
+    description: "Shows a signpost (a cafe.thunderbird.way.signpost record) as a postcard: the way out it belongs to, who made it, where it leads, and a way to go there. A signpost can be changed any time without changing either tile. Raku opens this when you open a signpost's address.",
+    sizing: { width: 640, height: 480 },
+    folder: 'signpost/tile',
+    files: ['index.html', 'signpost.css', 'signpost.js', 'view.js'],
+    cards: ['icon.png', 'banner.png'],
+    icon: '/icon.png',
+    screenshot: '/banner.png',
+    cardArt: 'open signpost\\dev\\card-art.html in a browser and save both pictures into signpost\\tile\\',
+    generator: 'Signposts',
+    renderer: 'cafe.thunderbird.way.signpost',
+    lexicons: true,                               // publishes the ways lexicons when new or changed
   },
 };
 

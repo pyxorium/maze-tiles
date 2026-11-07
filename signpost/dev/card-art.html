@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signposts: card art</title>
+<style>
+  body { margin: 0; padding: 20px; background: #d9d6cf; color: #222; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 6px; }
+  p { margin: 0 0 12px; max-width: 900px; }
+  .row { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; margin: 14px 0; }
+  .cell { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  canvas { background: repeating-conic-gradient(#ccc 0 25%, #eee 0 50%) 0 0 / 16px 16px; border-radius: 6px; max-width: 100%; height: auto; }
+  #banner { width: 640px; }
+  button { font: inherit; padding: 6px 14px; border-radius: 7px; border: 1px solid #999; background: #fff; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>Signposts: card art</h1>
+<p>The signpost renderer's card pictures, as chosen Nov 6 (icon D and banner 4b: claude/signpost-renderer-icon-sheet.html in the Foundry project): a trail signpost in the Places colours, a dotted trail at its foot; the banner laid out like the Places banner, on a faint map, the boards saying CHICAGO and SANTA MONICA. Open this file in a browser (it needs no server), check the two pictures, then save each into <code>signpost\tile\</code> under the name on its button. The banner's words use your system's fonts.</p>
+<div class="row">
+  <div class="cell"><canvas id="icon" width="256" height="256"></canvas><button id="saveIcon" type="button">Save icon.png</button></div>
+  <div class="cell"><canvas id="banner" width="1280" height="720"></canvas><button id="saveBanner" type="button">Save banner.png</button></div>
+</div>
+<script>
+const C = { bg: '#eee7d7', ink: '#2f2a26', soft: '#6b6157', card: '#fbf8f1', line: '#d8ccb2', acc: '#4260b0', deep: '#2f4a8f', cream: '#f1ebdd' };
+const F = 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+
+// A board shaped like an arrow (dir 1 points right, -1 left), with a slightly uneven chiselled edge, a carved groove
+// for lettering (or words), and two nail heads by the post. All in the icon's 256 x 256 box.
+function board(x0, x1, y, h, dir, { words = null, short = false } = {}) {
+  const tip = 22, m = y + h / 2;
+  const pts = dir > 0
+    ? [[x0, y + 1], [x1 - tip, y], [x1, m], [x1 - tip, y + h], [x0 + 1, y + h - 1], [x0 + 6, m]]
+    : [[x1, y], [x0 + tip, y + 1], [x0, m], [x0 + tip, y + h], [x1 - 1, y + h + 1], [x1 - 6, m]];
+  let s = `<path d="M${pts.map((p) => p.join(',')).join(' L')} Z" fill="${C.acc}" stroke="${C.deep}" stroke-width="5" stroke-linejoin="round"/>`;
+  const gx0 = dir > 0 ? x0 + 16 : x0 + tip + 10, gx1 = dir > 0 ? x1 - tip - 10 : x1 - 16;
+  if (words) s += `<text x="${(gx0 + gx1) / 2}" y="${m + 1}" text-anchor="middle" dominant-baseline="middle" font-family="${F}" font-weight="700" font-size="${words.length > 10 ? 12.5 : 15}" letter-spacing="1" fill="${C.cream}">${words}</text>`;
+  else s += `<rect x="${gx0}" y="${m - 4}" width="${(gx1 - gx0) * (short ? 0.62 : 0.86)}" height="8" rx="4" fill="${C.cream}" opacity=".95"/>`;
+  const nx = dir > 0 ? x0 + 8 : x1 - 8;
+  return s + `<circle cx="${nx}" cy="${y + 9}" r="3.2" fill="${C.cream}"/><circle cx="${nx}" cy="${y + h - 9}" r="3.2" fill="${C.cream}"/>`;
+}
+// The post (studs like the Places door's pilasters, a pointed cap, the door's scalloped foot) and its two boards.
+function signpost(words = null) {
+  const cx = 128, top = 38, foot = 214;
+  let s = `<rect x="${cx - 12}" y="${top}" width="24" height="${foot - top}" rx="4" fill="${C.acc}" stroke="${C.deep}" stroke-width="4"/>`;
+  s += `<rect x="${cx + 4}" y="${top + 4}" width="5" height="${foot - top - 8}" fill="${C.deep}" opacity=".55"/>`;
+  for (let y = top + 16; y < foot - 8; y += 18) if (y < 66 || y > 156) s += `<circle cx="${cx - 3}" cy="${y}" r="3.2" fill="${C.cream}"/>`;
+  s += `<path d="M${cx - 16},${top + 2} L${cx},${top - 12} L${cx + 16},${top + 2} Z" fill="${C.deep}"/>`;
+  s += `<path d="M${cx - 44},${foot} h88 v10 q-11,10 -22,0 q-11,10 -22,0 q-11,10 -22,0 q-11,10 -22,0 Z" fill="${C.deep}"/>`;
+  s += board(54, 214, 70, 38, 1, { words: words && words[0] });
+  s += board(42, 200, 118, 36, -1, { words: words && words[1], short: true });
+  return s;
+}
+// Icon D: the signpost with a dotted trail at its foot, on a cream tile with rounded corners like the Places icon.
+const TRAIL = `<path d="M18,236 C60,214 70,200 104,214 S170,236 200,214 S238,186 248,170" fill="none" stroke="${C.acc}" stroke-opacity=".45" stroke-width="5" stroke-linecap="round" stroke-dasharray="1 11"/>`;
+const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" rx="48" fill="${C.bg}"/>${TRAIL}${signpost()}</svg>`;
+// Banner 4b: the Places banner's layout, the signpost on a faint map with one dotted trail past its foot.
+const BANNER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="${C.bg}"/>
+  <g fill="none" stroke="${C.line}" stroke-width="3" opacity=".8">
+    <path d="M840,120 C930,80 1080,110 1160,170 S1240,320 1200,400"/><path d="M820,170 C900,140 1040,160 1110,210 S1180,330 1150,390"/>
+    <path d="M860,560 C940,520 1060,540 1140,600"/><path d="M880,610 C950,585 1040,595 1100,635"/></g>
+  <path d="M840,566 C900,530 960,548 1010,552 S1112,560 1150,520 S1232,430 1264,398" fill="none" stroke="${C.acc}" stroke-opacity=".4" stroke-width="7" stroke-linecap="round" stroke-dasharray="1 16"/>
+  <text x="150" y="228" font-family="${F}" font-weight="700" font-size="80" fill="${C.ink}">Signposts</text>
+  <text x="150" y="288" font-family="${F}" font-size="34" fill="${C.soft}">Where a way out of a tile leads.</text>
+  <rect x="150" y="328" width="440" height="84" rx="42" fill="${C.acc}"/>
+  <text x="370" y="381" text-anchor="middle" font-family="${F}" font-weight="700" font-size="32" fill="#fff">Go to Chicago</text>
+  <rect x="150" y="466" width="660" height="160" rx="28" fill="${C.card}" stroke="${C.line}" stroke-width="2"/>
+  <text x="186" y="518" font-family="${F}" font-size="24" fill="${C.soft}" letter-spacing="1.5">WHERE IT LEADS</text>
+  <rect x="186" y="542" width="588" height="54" rx="14" fill="${C.cream}"/>
+  <text x="204" y="578" font-family="ui-monospace, Consolas, Menlo, monospace" font-size="26" fill="${C.ink}">[place: …] [arrive/entrance: …]</text>
+  <g transform="translate(836 128) scale(1.75)">${signpost(['CHICAGO', 'SANTA MONICA'])}</g>
+</svg>`;
+
+function paint(canvas, svg) {
+  return new Promise((ok, fail) => {
+    const img = new Image();
+    img.onload = () => { const g = canvas.getContext('2d'); g.clearRect(0, 0, canvas.width, canvas.height); g.drawImage(img, 0, 0, canvas.width, canvas.height); ok(); };
+    img.onerror = fail;
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+function save(canvas, name) {
+  canvas.toBlob((b) => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }, 'image/png');
+}
+const icon = document.getElementById('icon'), banner = document.getElementById('banner');
+window.cardArtReady = Promise.all([paint(icon, ICON_SVG), paint(banner, BANNER_SVG)]);
+document.getElementById('saveIcon').onclick = () => save(icon, 'icon.png');
+document.getElementById('saveBanner').onclick = () => save(banner, 'banner.png');
+// for the build chat: the two pictures as PNG data
+window.cardArtPngs = async () => { await window.cardArtReady; return { icon: icon.toDataURL('image/png'), banner: banner.toDataURL('image/png') }; };
+</script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signpost renderer: stand-in host</title>
+<style>
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #2b2b2b; color: #eee; }
+  header { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 10px 14px; }
+  header b { color: #fff; }
+  button { font: inherit; color: #eee; background: #444; border: 1px solid #5a5a5a; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  button[aria-pressed="true"] { background: #ffd28a; color: #1b1406; border-color: #ffd28a; }
+  .wrap { display: flex; gap: 14px; padding: 0 14px 14px; flex-wrap: wrap; }
+  iframe { flex: 1 1 520px; height: 600px; border: 0; border-radius: 8px; background: #fff; }
+  iframe.phone { flex: 0 0 390px; height: 760px; }
+  #log { flex: 1 1 260px; margin: 0; background: #1d1d1d; border-radius: 8px; padding: 10px; white-space: pre-wrap; font: 12px ui-monospace, monospace; min-height: 200px; }
+</style>
+</head>
+<body>
+<header>
+  <span><b>Send</b></span>
+  <button data-s="slide" aria-pressed="true">The slide (one way)</button>
+  <button data-s="obelisk">The obelisk, named</button>
+  <button data-s="wardrobe">The wardrobe (empty)</button>
+  <button data-s="several">Made up: several, a note</button>
+  <button data-s="odd">Odd: no dot, no handle, a tile</button>
+  <button data-s="like">Not a signpost</button>
+  <button data-s="none">Nothing (no host)</button>
+  <span><b>Answer get</b></span>
+  <button id="g" aria-pressed="true">Yes</button>
+  <span><b>Width</b></span>
+  <button id="w">Phone</button>
+</header>
+<div class="wrap">
+  <iframe id="f" title="Signpost renderer" src="/tile/index.html"></iframe>
+  <pre id="log"></pre>
+</div>
+<script>
+const TC = 'did:plc:6vxjigxrqizmbo56gojxico3', PX = 'did:plc:rqbqpaaluty5v47jwciowpik', XX = 'did:plc:aaaaaaaaaaaaaaaaaaaaaaaa';
+const SP = 'cafe.thunderbird.way.signpost', PL = 'cafe.thunderbird.way.place';
+const rec = (did, handle, collection, rkey, value) => ({ uri: `at://${did}/${collection}/${rkey}`, cid: 'bafyreisample', did, handle, collection, rkey, value });
+// The records a { get } can find (the live places' contents, plus a made-up tile).
+const RECORDS = {
+  [`at://${TC}/${PL}/winter-forest`]: rec(TC, 'thunderbird.cafe', PL, 'winter-forest', { $type: PL, tile: `at://${TC}/ing.dasl.masl/3myxm45elkp22`, cid: 'bafy', name: 'Winter Forest', updatedAt: '2026-10-28T20:36:27.450Z' }),
+  [`at://${PX}/${PL}/maze`]: rec(PX, 'pyxorium.com', PL, 'maze', { $type: PL, tile: `at://${PX}/ing.dasl.masl/3myyjuyr2ja2s`, cid: 'bafy', name: 'Escher maze', updatedAt: '2026-10-29T05:29:18.784Z' }),
+  [`at://${XX}/ing.dasl.masl/3mzdesert`]: rec(XX, null, 'ing.dasl.masl', '3mzdesert', { $type: 'ing.dasl.masl', tile: { name: 'The Desert' } }),
+};
+const SAMPLES = {
+  slide: rec(TC, 'thunderbird.cafe', SP, 'winter-forest.slide', { $type: SP, to: [{ place: `at://${PX}/${PL}/maze`, entrance: 'obelisk' }], updatedAt: '2026-10-29T05:40:00.000Z' }),
+  obelisk: rec(PX, 'pyxorium.com', SP, 'maze.obelisk', { $type: SP, name: 'The obelisk', to: [{ place: `at://${TC}/${PL}/winter-forest`, entrance: 'lamppost' }], updatedAt: '2026-10-29T05:30:00.000Z' }),
+  wardrobe: rec(TC, 'thunderbird.cafe', SP, 'winter-forest.wardrobe', { $type: SP, to: [], updatedAt: '2026-10-28T20:36:28.000Z' }),
+  several: rec(TC, 'thunderbird.cafe', SP, 'winter-forest.arch', { $type: SP, name: 'The arch', note: 'Under construction: the second forest is still being planted.',
+    to: [{ place: `at://${TC}/${PL}/winter-forest`, entrance: 'lamppost', label: 'Back to the lamp post' }, { place: `at://${PX}/${PL}/maze`, entrance: 'obelisk' }], updatedAt: '2026-11-06T12:00:00.000Z' }),
+  odd: rec(XX, null, SP, 'well', { $type: SP, to: [{ tile: `at://${XX}/ing.dasl.masl/3mzdesert` }], updatedAt: '2026-11-06T12:00:00.000Z' }),
+  like: rec(XX, 'someone.example', 'app.bsky.feed.like', '3abc', { subject: {} }),
+  none: null,
+};
+let pick = 'slide', answer = true;
+const f = document.getElementById('f'), log = document.getElementById('log');
+const say = (s) => { log.textContent = `${new Date().toLocaleTimeString()}  ${s}\n` + log.textContent; };
+const send = (payload) => f.contentWindow.postMessage({ action: 'tiles-protocol-down-data-payload', payload }, '*');
+// Raku's rule (SR6): an address that appears in the signpost, or a record in the signpost's own account.
+function allowed(uri) {
+  const s = SAMPLES[pick];
+  if (!s) return false;
+  return JSON.stringify(s.value).includes(JSON.stringify(uri)) || uri.startsWith(`at://${s.did}/`);
+}
+addEventListener('message', (e) => {
+  if (e.source !== f.contentWindow || !e.data || typeof e.data.action !== 'string') return;
+  if (e.data.action === 'tiles-protocol-up-data-ready') {
+    say('tile: ready');
+    if (SAMPLES[pick]) { send(SAMPLES[pick]); say(`host: sent ${pick}`); }
+    else say('host: (sending nothing: the tile should say it shows signposts after 3 s)');
+  } else if (e.data.action === 'tiles-protocol-up-data-payload') {
+    const p = e.data.payload || {};
+    say(`tile asks: ${JSON.stringify(p)}`);
+    if (typeof p.get === 'string') {
+      if (!answer) return say('host: (not answering get)');
+      if (!allowed(p.get)) { send({ got: p.get, error: 'not-allowed' }); return say('host: refused (not in the signpost or its account)'); }
+      const r = RECORDS[p.get];
+      send(r ? { got: p.get, record: r } : { got: p.get, error: 'not-found' });
+      say(`host: ${r ? 'sent' : 'not found:'} ${p.get}`);
+    }
+  }
+});
+const reload = () => { f.src = '/tile/index.html?' + Date.now(); };
+document.querySelectorAll('[data-s]').forEach((b) => b.addEventListener('click', () => {
+  pick = b.dataset.s;
+  document.querySelectorAll('[data-s]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  reload();
+}));
+document.getElementById('g').addEventListener('click', (e) => { answer = !answer; e.target.setAttribute('aria-pressed', String(answer)); e.target.textContent = answer ? 'Yes' : 'No'; reload(); });
+document.getElementById('w').addEventListener('click', (e) => { const on = f.classList.toggle('phone'); e.target.setAttribute('aria-pressed', String(on)); });
+</script>
+</body>
+</html>

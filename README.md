@@ -259,3 +259,54 @@ From thunderbird.cafe (it asks for a thunderbird.cafe app password). At the end 
 tile's `uri` and record `cid`, which go in `RENDERERS` in `C:\thunderbird-cafe\raku\src\config.js` before Raku is
 pushed ("publish and pin before pushing"). `--place --again` publishes a new record after a change; Raku's pin must
 then move too, or Raku refuses the changed tile.
+
+## Signposts (`signpost\`): the signpost renderer
+
+A tile that shows one signpost record (`cafe.thunderbird.way.signpost`: where one exit of a tile leads) as a
+postcard. Raku opens it when someone opens a signpost's own address
+(`at://thunderbird.cafe/cafe.thunderbird.way.signpost/winter-forest.slide`). Plan: claude/raku-renderer-tiles-plan.md
+in the Foundry project, "The signpost renderer" (SR1 to SR8), with its mockup claude/raku-signpost-renderer-mockup.html.
+
+- **What it shows (SR1):** real names, with the record's own data beside them in brackets naming the kind:
+
+  ```
+  The slide, in Winter Forest
+  A way out of [place: winter-forest] [leave/exit: slide]
+  by @thunderbird.cafe [did:plc:…]
+  Updated Oct 29, 2026.
+  ( Go to Escher maze )
+  WHERE IT LEADS
+  A way in to [place: maze] [arrive/entrance: obelisk]
+  by @pyxorium.com [did:plc:…]
+  ```
+
+  Several destinations: a "Go there" per row (a destination's `label`, if written, on top of its row); none: "This
+  doesn't lead anywhere yet."; the signpost's `note` under the heading. The tile's id and the exit's come from the
+  record key (`winter-forest.slide`); a key with no dot shows only `[leave/exit: …]`.
+- **The exit's name (SR5):** the signpost's optional `name` (new in the lexicon, Nov 6; fill it in PDSls, e.g. "The
+  slide"); without it, one made from the id (`tree-door` → "Tree door").
+- **Where the names come from (SR2, SR6):** the record holds addresses only, so the tile asks its host for the
+  records it needs: `{ get: "at://…" }` for the tile's own place (same account) and each destination. A host that
+  answers sends `{ got, record }` (the same shape as the signpost) or `{ got, error }`. Raku answers only for
+  addresses in the signpost or in its own account. With no answers, the bracketed record data still shows.
+- **Going (as Places' Step into):** "Go to …" / "Go there" sends `{ open: "at://…" }` (a place opens as its own
+  postcard; a tile as the tile). It only ever sends `get` and `open`.
+- **The look:** the travel pages' and Places', light only; `signpost\tile\signpost.css`'s `:root` line is the same
+  as `site\way.css`'s and `place\tile\place.css`'s (`test\signpost.test.mjs` checks).
+- **The card pictures (SR4):** a trail signpost in the Places colours, a dotted trail at its foot; the banner on a
+  faint map, its boards saying CHICAGO and SANTA MONICA. To redraw, open `signpost\dev\card-art.html` in a browser
+  and save both pictures into `signpost\tile\`. The choices: claude/signpost-renderer-icon-sheet.html.
+- `npm run dev-signpost`: http://127.0.0.1:5230/ holds the tile in a stand-in host that answers "ready" with a sample
+  and its `get`s by Raku's rule ("Answer get: No" shows a host that doesn't), and logs what the tile asks.
+- `test\signpost.test.mjs` (part of `npm test`); `test\browser\check_signpost.mjs` through the stand-in host (run in
+  the build chat); Raku's `test\browser\check_renderer.py` through the real loader.
+
+**Publishing it** (`--signpost`: this tile, plus the two ways lexicons if they've changed, which they have with
+`name`; no place or signposts), in `C:\thunderbird-cafe\maze-tiles`:
+
+```
+node scripts/publish.mjs --signpost --dry-run
+node scripts/publish.mjs --signpost
+```
+
+From thunderbird.cafe. At the end it prints the pin for Raku's `RENDERERS` (`'cafe.thunderbird.way.signpost'`).
