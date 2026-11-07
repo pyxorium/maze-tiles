@@ -69,7 +69,7 @@ export const PLACE_TILES = {
   // under that id overwrote them; repaired by hand).
   'place-renderer': {
     name: 'Places',
-    description: "Shows a place (a cafe.thunderbird.way.place record) as a postcard: its name, who made it, and a way into the tile behind it. A place keeps one address while its tile is replaced. Raku opens this when you open a place's address.",
+    description: "Shows a place (a cafe.thunderbird.way.place record) as a postcard: its name, who made it, the card of the tile behind it, and a way into that tile. A place keeps one address while its tile is replaced. Raku opens this when you open a place's address.",
     sizing: { width: 640, height: 480 },
     folder: 'place/tile',
     files: ['index.html', 'place.css', 'place.js', 'view.js'],

@@ -19,8 +19,28 @@ body { font: 17px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
 .place .label { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--soft); }
 .place code { display: block; margin: 10px 0 0; font: 14px/1.45 ui-monospace, Consolas, "Cascadia Mono", monospace; background: var(--code);
   border-radius: 8px; padding: 8px 10px; overflow-wrap: anywhere; color: var(--ink); user-select: all; }
+/* The tile's card (claude/raku-places-card-plan.md, PC2 to PC5): the banner, or the icon beside the name; the tile's
+   name and who made it; three lines of its description with More / Less; the changed line; the address under a rule. */
+.place .pic { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; background: var(--code);
+  border: 1px solid var(--line); box-sizing: border-box; margin: 4px 0 14px; }
+.place .head { display: flex; gap: 14px; align-items: center; }
+.place .ico { flex: none; width: 64px; height: 64px; border-radius: 14px; background: var(--code); border: 1px solid var(--line); box-sizing: border-box; object-fit: cover; }
+.place .coming { background: linear-gradient(100deg, var(--code) 30%, #f7f2e6 50%, var(--code) 70%); background-size: 300% 100%; animation: shimmer 1.6s linear infinite; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -50% 0; } }
+@media (prefers-reduced-motion: reduce) { .place .coming { animation: none; } }
+.place .text { min-width: 0; }
+.place h2 { font-size: 21px; line-height: 1.25; margin: 0; overflow-wrap: anywhere; }
+.place .tby { color: var(--soft); font-size: 15px; margin-top: 2px; overflow-wrap: anywhere; }
+.place .desc { margin-top: 10px; font-size: 16px; overflow-wrap: anywhere; }
+.place .desc.clip { display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.place .more { font: inherit; font-size: 15px; color: var(--accent); background: none; border: 0; padding: 0; margin-top: 4px; cursor: pointer; text-decoration: underline; }
+.place .more[hidden] { display: none; }
+.place .more:focus-visible { outline: 3px solid #ffd28a; outline-offset: 2px; border-radius: 4px; }
+.place .changed { color: var(--soft); font-size: 15px; margin-top: 10px; }
+.place .why { color: var(--soft); font-size: 15px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
 @media (max-width: 640px) {
   .place { padding: 32px 16px 48px; }
   .place h1 { font-size: 25px; }
   .place .go { width: 100%; }
+  .place .card { padding: 14px; }
 }

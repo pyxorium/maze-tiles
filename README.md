@@ -218,7 +218,8 @@ changed. `--forest --again` publishes a new record and moves the place to it; si
 ## Places (`place\`): the place renderer
 
 A tile that shows one place record (`cafe.thunderbird.way.place`) as a postcard: the place's name, who made it and
-when, a **Step into <name>** button, and "The tile behind it" with the tile's `at://` address. Raku opens it when
+when, a **Step into <name>** button, and "The tile behind it": the tile's card (its banner, name, who made it and its
+description, read through its host) above the tile's `at://` address. Raku opens it when
 someone opens a place's own address (`at://pyxorium.com/cafe.thunderbird.way.place/maze`); it plays no part in
 walking between tiles. Plan: claude/raku-renderer-tiles-plan.md in the Foundry project (RT1 to RT9) and its mockup
 claude/raku-place-renderer-mockup.html.
@@ -227,9 +228,19 @@ claude/raku-place-renderer-mockup.html.
   `/.well-known/web-tiles/data.js` (never bundled: each host serves its own), adds its handler, then calls `listen()`;
   the host answers "ready" with one payload `{ uri, cid, did, handle, collection, rkey, value }`, the record as
   stored (RT4). So any host that speaks tp-data can use it, not only Raku.
-- **The one thing it sends (RT5):** "Step into" sends `{ open: "at://…/ing.dasl.masl/…" }` (the place's tile). The
-  tile can't tell whether its host opened anything, so a quiet line then says "If nothing opens, copy the address
-  below into Raku."
+- **Step into (RT5):** sends `{ open: "at://…/ing.dasl.masl/…" }` (the place's tile). The tile can't tell whether its
+  host opened anything, so a quiet line then says "If nothing opens, copy the address below into Raku."
+- **The tile's card (claude/raku-places-card-plan.md, PC1 to PC6):** once it has the place, the tile asks its host for
+  the tile record behind it, `{ get: "<the tile's at:// address>" }`, once (Raku allows it: the address is in the
+  place record, SR6), and draws its banner (else its icon beside the name), name, who made it and when, and the first
+  three lines of its description with More / Less. The picture comes from a second request, `{ picture: "<blob cid>",
+  from: "<the tile record's at:// address>" }`; the host answers `{ gotPicture, from, type, bytes }` (PNG, JPEG, WebP
+  or GIF, at most 1 MB), shown as a `blob:` picture (the tile's policy allows that; it still reaches no network). A
+  picture that's refused, isn't one, or hasn't come within 10 s: the card without one, no message. When the tile
+  record's version differs from the one the place records, a line says portals in other tiles won't lead to it until
+  the place is updated (the travel pages refuse it) and that Step into opens the changed tile anyway (PC4). "not-found":
+  "Raku couldn't find this tile…", Step into kept; "hidden": "Raku doesn't show this tile.", no Step into (PC5). A host
+  that doesn't answer, or any other refusal: the card as before, the address only. These three are all it sends.
 - **Other states (RT6):** "Waiting for a place…"; no record within 3 s, or opened on its own: "This tile shows
   places." (naming no place); a record of another kind: "This isn't a place."; a place pointing at no tile: no button.
 - **The look (RT7):** the travel pages', light only. The `:root` line of `place\tile\place.css` is the same as
@@ -242,8 +253,10 @@ claude/raku-place-renderer-mockup.html.
   open `place\dev\card-art.html` in a browser (no server needed) and save both pictures into `place\tile\`. The
   choices: claude/place-renderer-door-sheet.html in the Foundry project.
 - `npm run dev-place`: http://127.0.0.1:5220/ holds the tile in a stand-in host that answers "ready" with a sample
-  (Winter Forest, the Escher maze, a long name, a place with no tile, a record that isn't a place, or nothing) and
-  logs what the tile asks; Phone narrows it.
+  (Winter Forest, the Escher maze, a long name, a place with no tile, a record that isn't a place, or nothing), answers
+  `get` and `picture` with the samples' tile records and the real banners and icon from this folder (switches for a
+  changed tile, not found, hidden, a refusal or no answer; a slow, refused or non-picture answer, or none), and logs
+  what the tile asks; Phone narrows it.
 - `test\place.test.mjs` (part of `npm test`): the view, the colours kept in step, the page, publishing with `--place`.
   `test\browser\check_place.mjs` tries every state through the stand-in host (run in the build chat). Raku's
   `test\browser\check_renderer.py` runs it through the real tile loader.

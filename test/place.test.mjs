@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { readPlace, byLine, formatDate, PLACE } from '../place/tile/view.js';
+import { readPlace, byLine, formatDate, PLACE, readTileCard, readPicture, tileByLine, changedLine, CANT_READ, PICTURE_MAX } from '../place/tile/view.js';
 import { runPublish, ACCOUNT, PLACE as PLACE_NSID, RESERVED_KEYS } from '../scripts/publish.mjs';
 import { TILES, FOREST_TILES, PLACE_TILES, SIGNPOST_TILES, ROOT } from '../scripts/tiles.mjs';
 import { ISO_TILES } from '../iso/tiles.mjs';
@@ -20,7 +20,8 @@ const payload = (over = {}, value = {}) => ({
 
 test('a place: its name, who made it, when, and the tile behind it', () => {
   const v = readPlace(payload());
-  assert.deepEqual(v, { kind: 'place', name: 'Winter Forest', by: '@thunderbird.cafe', updated: 'Oct 28, 2026', tile: FOREST });
+  assert.deepEqual(v, { kind: 'place', name: 'Winter Forest', by: '@thunderbird.cafe', updated: 'Oct 28, 2026', tile: FOREST, pinned: null });
+  assert.equal(readPlace(payload({}, { cid: 'bafyreifahwnqqfnfxeqgkvq7sbnbxspne2nw5hrccoskrfuadn2rsudura' })).pinned, 'bafyreifahwnqqfnfxeqgkvq7sbnbxspne2nw5hrccoskrfuadn2rsudura', 'the version the place was pointed at');
   assert.equal(byLine(v), 'A place by @thunderbird.cafe. Updated Oct 28, 2026.');
   assert.equal(PLACE, PLACE_NSID, 'the same name as the ways lexicon');
 });
@@ -76,7 +77,11 @@ test('the page: its policy keeps it off the network; the data protocol comes fro
   const js = readFileSync(join(ROOT, 'place', 'tile', 'place.js'), 'utf8');
   assert.match(js, /import\('\/\.well-known\/web-tiles\/data\.js'\)/, 'loaded from the host\'s well-known path (tiles-protocols)');
   assert.ok(js.indexOf('addDataHandler(onPayload)') < js.indexOf('api.listen()'), 'the handler is added before listen() (data.js buffers nothing)');
-  assert.match(js, /sendData\(\{ open: view\.tile \}\)/, 'the one thing it sends: open the tile (RT5)');
+  assert.match(js, /ask\(\{ open: view\.tile \}\)/, 'Step into: open the tile (RT5)');
+  assert.match(js, /ask\(\{ get: view\.tile \}\)/, 'the tile record behind the place (PC1)');
+  assert.match(js, /ask\(\{ picture: c\.picture\.cid, from: c\.picture\.from \}\)/, 'one picture named in it (PC6)');
+  assert.equal((js.match(/ask\(\{/g) || []).length, 3, 'nothing else is ever sent');
+  assert.match(js, /URL\.createObjectURL\(new Blob/, 'the picture shown as a blob: address (its policy allows img-src blob:)');
   assert.ok(!/innerHTML/.test(js), 'drawn with DOM calls only');
   for (const f of PLACE_TILES['place-renderer'].files) assert.ok(readFileSync(join(ROOT, 'place', 'tile', f)).length > 0, f);
 });
@@ -133,4 +138,85 @@ test('the published.json in this folder: the place records and the renderer each
   const pj = JSON.parse(readFileSync(join(ROOT, 'published.json'), 'utf8'));
   assert.ok(pj.places && pj.places['winter-forest'] && pj.places.maze, 'the place records\' bookkeeping');
   if (pj['place-renderer']) assert.match(pj['place-renderer'].uri, new RegExp(`^at://${ACCOUNT}/ing\\.dasl\\.masl/`));
+});
+
+// ---------- the tile's card (claude/raku-places-card-plan.md, PC1 to PC6) ----------
+
+const PINNED = 'bafyreifahwnqqfnfxeqgkvq7sbnbxspne2nw5hrccoskrfuadn2rsudura';
+const BANNER = 'bafkreiforestbannerstandinaaaaaaaaaaa';
+const ICON = 'bafkreiforesticonstandinaaaaaaaaaaaa';
+const blobRef = (cid, mimeType = 'image/png') => ({ src: { $type: 'blob', ref: { $link: cid }, mimeType, size: 10 } });
+const place = () => readPlace(payload({}, { cid: PINNED }));
+const got = (over = {}, tile = {}, value = {}) => ({
+  got: FOREST,
+  record: { uri: FOREST, cid: PINNED, did: 'did:plc:6vxjigxrqizmbo56gojxico3', handle: 'thunderbird.cafe', collection: 'ing.dasl.masl', rkey: '3myxm45elkp22',
+    value: { $type: 'ing.dasl.masl', createdAt: '2026-10-28T20:30:00.000Z', ...value, tile: { name: 'Winter Forest', description: 'A snowy night forest.',
+      icons: [{ src: '/icon.png' }], screenshots: [{ src: '/banner.jpg' }],
+      resources: { '/': blobRef('bafkreiindexaaaaaaaaaaaaaaaaaaaaa', 'text/html'), '/banner.jpg': blobRef(BANNER, 'image/jpeg'), '/icon.png': blobRef(ICON) }, ...tile } }, ...over },
+});
+
+test('the tile\'s card: its name, who made it, when, its description, and its banner', () => {
+  const c = readTileCard(got(), place());
+  assert.deepEqual(c, { kind: 'card', name: 'Winter Forest', by: '@thunderbird.cafe', published: 'Oct 28, 2026', description: 'A snowy night forest.',
+    picture: { cid: BANNER, from: FOREST, use: 'banner' }, changed: false });
+  assert.equal(tileByLine(c), 'A tile by @thunderbird.cafe. Published Oct 28, 2026.');
+  assert.equal(tileByLine({ by: null, published: null }), 'A tile.');
+});
+
+test('no banner: the icon beside the name (PC2); neither: no picture; a picture without a file is skipped', () => {
+  assert.deepEqual(readTileCard(got({}, { screenshots: [] }), place()).picture, { cid: ICON, from: FOREST, use: 'icon' });
+  assert.equal(readTileCard(got({}, { screenshots: [], icons: [] }), place()).picture, null);
+  assert.deepEqual(readTileCard(got({}, { screenshots: [{ src: '/missing.png' }, { src: '/banner.jpg' }] }), place()).picture.cid, BANNER);
+  assert.equal(readTileCard(got({}, { screenshots: [], icons: [{ src: '/icon.png' }], resources: { '/icon.png': { src: { ref: { $link: 'not a cid' } } } } }), place()).picture, null);
+  assert.equal(readTileCard(got({ uri: 'https://example.com/' }), place()).picture, null, 'no record address to name in the request');
+});
+
+test('a changed tile: its version differs from the one the place records (PC4)', () => {
+  assert.equal(readTileCard(got({ cid: 'bafyreichangedsincetheplacewaspointedataaaaaaaaaaaaaaaaaa' }), place()).changed, true);
+  assert.equal(readTileCard(got({ cid: 'bafyreichangedsincetheplacewaspointedataaaaaaaaaaaaaaaaaa' }), readPlace(payload())).changed, false, 'no pinned version: nothing to compare');
+  assert.equal(changedLine(place()), "This tile has been changed since the Winter Forest place was pointed at it (Oct 28, 2026), so portals in other tiles won't lead to it until the place is updated. Step into from this place opens the changed tile anyway.");
+  assert.ok(!changedLine({ name: 'X', updated: null }).includes('('), 'no date: no brackets');
+});
+
+test('can\'t be read: two messages for not-found and hidden (PC5); other refusals keep today\'s card', () => {
+  assert.deepEqual(readTileCard({ got: FOREST, error: 'not-found' }, place()), { kind: 'error', error: 'not-found' });
+  assert.deepEqual(readTileCard({ got: FOREST, error: 'hidden' }, place()), { kind: 'error', error: 'hidden' });
+  for (const error of ['not-allowed', 'too-many', 'whatever']) assert.deepEqual(readTileCard({ got: FOREST, error }, place()), { kind: 'none' });
+  assert.equal(CANT_READ['not-found'], "Raku couldn't find this tile. It may have been deleted, or its author's server may not be answering right now.");
+  assert.equal(CANT_READ.hidden, "Raku doesn't show this tile.");
+});
+
+test('answers that aren\'t the card: another address, not a tile, nothing to answer for', () => {
+  assert.equal(readTileCard({ ...got(), got: 'at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3other' }, place()), null);
+  assert.equal(readTileCard(got(), readPlace(payload({}, { tile: 'https://example.com/' }))), null, 'a place with no tile asks for nothing');
+  assert.equal(readTileCard(null, place()), null);
+  assert.equal(readTileCard(payload(), place()), null, 'a record is not an answer');
+  assert.deepEqual(readTileCard(got({ collection: 'app.bsky.feed.post' }), place()), { kind: 'none' });
+  assert.deepEqual(readTileCard(got({ value: { text: 'hi' } }), place()), { kind: 'none' });
+});
+
+test('the card\'s text is tidied and cut; a handle that isn\'t one gives the DID; no name: the record key', () => {
+  const c = readTileCard(got({ handle: 'not a handle' }, { name: undefined, description: `  ${'word '.repeat(600)} ` }), place());
+  assert.equal(c.name, '3myxm45elkp22');
+  assert.equal(c.by, 'did:plc:6vxjigxrqizmbo56gojxico3');
+  assert.equal(c.description.length, 2000);
+  assert.ok(c.description.endsWith('…'));
+  assert.equal(readTileCard(got({}, { description: undefined }), place()).description, '');
+  assert.equal(readTileCard(got({}, {}, { createdAt: 'nope' }), place()).published, null);
+});
+
+test('the picture: only the answer to what was asked, of the four kinds, at most 1 MB', () => {
+  const asked = { cid: BANNER, from: FOREST };
+  const bytes = new Uint8Array([0xff, 0xd8, 0xff, 1]).buffer;
+  assert.deepEqual(readPicture({ gotPicture: BANNER, from: FOREST, type: 'image/jpeg', bytes }, asked), { ok: true, type: 'image/jpeg', bytes });
+  assert.equal(readPicture({ gotPicture: BANNER, from: FOREST, type: 'image/jpeg', bytes: new Uint8Array(bytes) }, asked).bytes.byteLength, 4, 'a typed array is fine too');
+  assert.equal(readPicture({ gotPicture: ICON, from: FOREST, type: 'image/png', bytes }, asked), null, 'another picture');
+  assert.equal(readPicture({ gotPicture: BANNER, from: 'at://other', type: 'image/png', bytes }, asked), null, 'from another record');
+  assert.equal(readPicture({ gotPicture: BANNER, from: FOREST, type: 'image/png', bytes }, null), null, 'nothing asked');
+  assert.deepEqual(readPicture({ gotPicture: BANNER, from: FOREST, error: 'too-big' }, asked), { ok: false });
+  assert.deepEqual(readPicture({ gotPicture: BANNER, from: FOREST, type: 'image/svg+xml', bytes }, asked), { ok: false }, 'no SVG');
+  assert.deepEqual(readPicture({ gotPicture: BANNER, from: FOREST, type: 'text/html', bytes }, asked), { ok: false });
+  assert.deepEqual(readPicture({ gotPicture: BANNER, from: FOREST, type: 'image/png', bytes: new ArrayBuffer(PICTURE_MAX + 1) }, asked), { ok: false });
+  assert.deepEqual(readPicture({ gotPicture: BANNER, from: FOREST, type: 'image/png', bytes: 'text' }, asked), { ok: false });
+  assert.deepEqual(readPicture({ gotPicture: BANNER, from: FOREST, type: 'image/png', bytes: new ArrayBuffer(0) }, asked), { ok: false });
 });

@@ -11,8 +11,8 @@
   button { font: inherit; color: #eee; background: #444; border: 1px solid #5a5a5a; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
   button[aria-pressed="true"] { background: #ffd28a; color: #1b1406; border-color: #ffd28a; }
   .wrap { display: flex; gap: 14px; padding: 0 14px 14px; flex-wrap: wrap; }
-  iframe { flex: 1 1 520px; height: 560px; border: 0; border-radius: 8px; background: #fff; }
-  iframe.phone { flex: 0 0 390px; height: 700px; }
+  iframe { flex: 1 1 520px; height: 760px; border: 0; border-radius: 8px; background: #fff; }
+  iframe.phone { flex: 0 0 390px; height: 820px; }
   #log { flex: 1 1 260px; margin: 0; background: #1d1d1d; border-radius: 8px; padding: 10px; white-space: pre-wrap; font: 12px ui-monospace, monospace; min-height: 200px; }
 </style>
 </head>
@@ -25,6 +25,19 @@
   <button data-s="notile">Points at no tile</button>
   <button data-s="like">Not a place</button>
   <button data-s="none">Nothing (no host)</button>
+  <span><b>Tile record</b></span>
+  <button data-g="card" aria-pressed="true">Answer</button>
+  <button data-g="changed">Changed since</button>
+  <button data-g="not-found">Not found</button>
+  <button data-g="hidden">Hidden</button>
+  <button data-g="not-allowed">Refuse</button>
+  <button data-g="silent">No answer</button>
+  <span><b>Picture</b></span>
+  <button data-p="send" aria-pressed="true">Send</button>
+  <button data-p="slow">Slow (2 s)</button>
+  <button data-p="too-big">Refuse</button>
+  <button data-p="junk">Not a picture</button>
+  <button data-p="silent">No answer</button>
   <span><b>Width</b></span>
   <button id="w">Phone</button>
 </header>
@@ -49,24 +62,84 @@ const SAMPLES = {
     collection: 'app.bsky.feed.like', rkey: '3abc', value: { subject: {} } },
   none: null,
 };
-let pick = 'forest';
+// The tile records behind the samples (what Raku's { get } would send back), with blob refs for their pictures; the
+// pictures themselves are the real ones from this folder, fetched from the stand-in server (/pics/…).
+const blob = (cid, mimeType) => ({ src: { $type: 'blob', ref: { $link: cid }, mimeType, size: 1 } });
+const PIC_FILES = { bafkreiforestbannerstandinaaaaaaaaaaa: ['/pics/forest-banner.jpg', 'image/jpeg'], bafkreimazebannerstandinaaaaaaaaaaaaa: ['/pics/maze-banner.png', 'image/png'],
+  bafkreimazeiconstandinaaaaaaaaaaaaaaa: ['/pics/maze-icon.png', 'image/png'] };
+const TILE_RECORDS = {
+  forest: { uri: 'at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3myxm45elkp22', cid: 'bafyreifahwnqqfnfxeqgkvq7sbnbxspne2nw5hrccoskrfuadn2rsudura',
+    did: 'did:plc:6vxjigxrqizmbo56gojxico3', handle: 'thunderbird.cafe', collection: 'ing.dasl.masl', rkey: '3myxm45elkp22',
+    value: { $type: 'ing.dasl.masl', cid: 'bafyreimanifest', createdAt: '2026-10-28T20:30:00.000Z', tile: { name: 'Winter Forest',
+      description: 'A snowy night forest. A lamp post glows in a clearing, and four winding paths lead to a wardrobe, a great old tree, a stone arch and a small library. This place is reached through other places.',
+      icons: [{ src: '/icon.png' }], screenshots: [{ src: '/banner.jpg' }],
+      resources: { '/': blob('bafkreiindexaaaaaaaaaaaaaaaaaaaaa', 'text/html'), '/banner.jpg': blob('bafkreiforestbannerstandinaaaaaaaaaaa', 'image/jpeg'), '/icon.png': blob('bafkreiforesticonaaaaaaaaaaaaaaaa', 'image/png') } } } },
+  maze: { uri: 'at://did:plc:rqbqpaaluty5v47jwciowpik/ing.dasl.masl/3myyjuyr2ja2s', cid: 'bafyreigfeq5q5ba4ba2jkckcn7sarurbrmnpfssmacakujbcecultm77tu',
+    did: 'did:plc:rqbqpaaluty5v47jwciowpik', handle: 'pyxorium.com', collection: 'ing.dasl.masl', rkey: '3myyjuyr2ja2s',
+    value: { $type: 'ing.dasl.masl', cid: 'bafyreimanifest', createdAt: '2026-10-29T05:20:00.000Z', tile: { name: 'Escher maze',
+      description: "Wander an impossible place, seen from just behind your shoulder: twelve rooms joined by doors, stairs, ramps and a hole in the floor that don't fit one real space. Climb four flights, all up, and end where you began; fall through a hole with no way back up; step out of a closet into a hall far bigger than it. Every doorway shows the room beyond, and you walk through with no cut. The map fills in as you go.",
+      icons: [{ src: '/icon.png' }], screenshots: [{ src: '/banner.png' }],
+      resources: { '/': blob('bafkreiindexaaaaaaaaaaaaaaaaaaaaa', 'text/html'), '/banner.png': blob('bafkreimazebannerstandinaaaaaaaaaaaaa', 'image/png'), '/icon.png': blob('bafkreimazeiconstandinaaaaaaaaaaaaaaa', 'image/png') } } } },
+  long: { uri: 'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/ing.dasl.masl/3mzzzzzzzzzzz', cid: 'bafy', did: 'did:plc:aaaaaaaaaaaaaaaaaaaaaaaa', handle: null,
+    collection: 'ing.dasl.masl', rkey: '3mzzzzzzzzzzz',
+    value: { $type: 'ing.dasl.masl', createdAt: '2026-11-04T10:00:00Z', tile: { name: 'The Library Beneath the Lake (no banner, so its icon)',
+      description: 'Shelves of drowned books, read by lantern light. '.repeat(8).trim(), icons: [{ src: '/icon.png' }],
+      resources: { '/': blob('bafkreiindexaaaaaaaaaaaaaaaaaaaaa', 'text/html'), '/icon.png': blob('bafkreimazeiconstandinaaaaaaaaaaaaaaa', 'image/png') } } } },
+};
+let pick = 'forest', getMode = 'card', picMode = 'send', sent = null;
 const f = document.getElementById('f'), log = document.getElementById('log');
 const say = (s) => { log.textContent = `${new Date().toLocaleTimeString()}  ${s}\n` + log.textContent; };
 addEventListener('message', (e) => {
   if (e.source !== f.contentWindow || !e.data || typeof e.data.action !== 'string') return;
   if (e.data.action === 'tiles-protocol-up-data-ready') {
     say('tile: ready');
-    if (SAMPLES[pick]) { f.contentWindow.postMessage({ action: 'tiles-protocol-down-data-payload', payload: SAMPLES[pick] }, '*'); say(`host: sent ${pick}`); }
+    sent = null;
+    if (SAMPLES[pick]) { send(SAMPLES[pick]); say(`host: sent ${pick}`); }
     else say('host: (sending nothing: the tile should say it shows places after 3 s)');
   } else if (e.data.action === 'tiles-protocol-up-data-payload') {
-    say(`tile asks: ${JSON.stringify(e.data.payload)}`);
+    const q = e.data.payload || {};
+    say(`tile asks: ${JSON.stringify(q)}`);
+    if (typeof q.get === 'string') answerGet(q.get);
+    else if (typeof q.picture === 'string') answerPicture(q.picture, q.from);
   }
 });
+const send = (payload) => f.contentWindow.postMessage({ action: 'tiles-protocol-down-data-payload', payload }, '*');
+// Raku's rule, roughly (SR6): only the tile the place names; the switches play the other answers.
+function answerGet(address) {
+  const rec = TILE_RECORDS[pick];
+  if (getMode === 'silent') return say('host: (not answering get)');
+  if (!SAMPLES[pick] || address !== SAMPLES[pick].value.tile || getMode === 'not-allowed') { send({ got: address, error: 'not-allowed' }); return say('host: get refused (not-allowed)'); }
+  if (getMode === 'not-found' || getMode === 'hidden' || !rec) { send({ got: address, error: rec ? getMode : 'not-found' }); return say(`host: get → ${rec ? getMode : 'not-found'}`); }
+  const record = structuredClone(rec);
+  if (getMode === 'changed') record.cid = 'bafyreichangedsincetheplacewaspointedatitaaaaaaaaaaaaaaaaaaa';
+  sent = record;
+  send({ got: address, record });
+  say(`host: get → the tile record${getMode === 'changed' ? ' (a different version from the place\'s)' : ''}`);
+}
+// Raku's rule, roughly (PC6): only a blob listed in the record it sent back, from that record.
+async function answerPicture(cid, from) {
+  if (picMode === 'silent') return say('host: (not answering picture)');
+  const listed = sent && from === sent.uri && Object.values(sent.value.tile.resources).some((r) => r.src.ref.$link === cid);
+  if (!listed || !PIC_FILES[cid] || picMode === 'too-big') { send({ gotPicture: cid, from, error: listed ? 'too-big' : 'not-allowed' }); return say(`host: picture refused (${listed ? 'too-big' : 'not-allowed'})`); }
+  if (picMode === 'junk') { send({ gotPicture: cid, from, type: 'text/html', bytes: new TextEncoder().encode('<p>not a picture</p>').buffer }); return say('host: picture → text/html bytes (the tile should leave it out)'); }
+  if (picMode === 'slow') await new Promise((r) => setTimeout(r, 2000));
+  const [url, type] = PIC_FILES[cid];
+  const bytes = await (await fetch(url)).arrayBuffer();
+  send({ gotPicture: cid, from, type, bytes });
+  say(`host: picture → ${type}, ${bytes.byteLength} bytes`);
+}
 document.querySelectorAll('[data-s]').forEach((b) => b.addEventListener('click', () => {
   pick = b.dataset.s;
   document.querySelectorAll('[data-s]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
   f.src = '/tile/index.html?' + Date.now();
 }));
+for (const [attr, set] of [['data-g', (v) => { getMode = v; }], ['data-p', (v) => { picMode = v; }]]) {
+  document.querySelectorAll(`[${attr}]`).forEach((b) => b.addEventListener('click', () => {
+    set(b.getAttribute(attr));
+    document.querySelectorAll(`[${attr}]`).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    f.src = '/tile/index.html?' + Date.now();
+  }));
+}
 document.getElementById('w').addEventListener('click', (e) => { const on = f.classList.toggle('phone'); e.target.setAttribute('aria-pressed', String(on)); });
 </script>
 </body>

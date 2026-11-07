@@ -1,6 +1,8 @@
 // A stand-in host for the place renderer, to look at it on this computer without Raku: npm run dev-place, then
 // http://127.0.0.1:5220/ . The page holds the tile in a frame and answers its "ready" with a sample record over the
-// tiles spec's data protocol (as Raku does), and logs what the tile asks ("Step into" → { open }).
+// tiles spec's data protocol (as Raku does), and logs what the tile asks ("Step into" → { open }). It also answers the
+// tile's { get } for its tile record and { picture } for the banner or icon (claude/raku-places-card-plan.md, PC6),
+// with the real pictures from this folder (/pics/…).
 // The tile's own data.js here is a copy of the loading server's (C:\thunderbird-cafe\tiles-loading-server\public\data.js).
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -10,7 +12,12 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TILE = join(HERE, '..', 'tile');
 const PORT = Number(process.env.PORT) || 5220;
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' };
+const PICS = {
+  'forest-banner.jpg': join(HERE, '..', '..', 'forest', 'tile', 'banner.jpg'),
+  'maze-banner.png': join(HERE, '..', '..', 'tile', 'banner.png'),
+  'maze-icon.png': join(HERE, '..', '..', 'tile', 'icon.png'),
+};
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.json': 'application/json' };
 const DATA_JS = `const UP = 'tiles-protocol-up-data-', DOWN = 'tiles-protocol-down-data-';
 const handlers = [];
 export function addDataHandler (h) { if (!handlers.includes(h)) handlers.push(h); }
@@ -24,6 +31,10 @@ createServer(async (req, res) => {
   const path = new URL(req.url, 'http://x').pathname;
   if (path === '/') { res.writeHead(200, { 'content-type': TYPES['.html'] }); return res.end(await readFile(join(HERE, 'host.html'))); }
   if (path === '/.well-known/web-tiles/data.js') { res.writeHead(200, { 'content-type': TYPES['.js'] }); return res.end(DATA_JS); }
+  if (path.startsWith('/pics/') && PICS[path.slice(6)]) {
+    try { const b = await readFile(PICS[path.slice(6)]); res.writeHead(200, { 'content-type': 'application/octet-stream' }); return res.end(b); }
+    catch { /* fall through */ }
+  }
   if (path.startsWith('/tile/')) {
     const file = normalize(join(TILE, path.slice('/tile/'.length) || 'index.html'));
     if (!file.startsWith(TILE)) { res.writeHead(403); return res.end(); }
