@@ -8,9 +8,9 @@
     },
     "cafe.thunderbird.way.signpost": {
       "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/com.atproto.lexicon.schema/cafe.thunderbird.way.signpost",
-      "cid": "bafyreihmydw5wtt2n57iop33iw2i3goorvkzderq6iq7pzcqy2f3obikqu",
-      "text": "{\"lexicon\":1,\"id\":\"cafe.thunderbird.way.signpost\",\"description\":\"A signpost: where one exit of a web tile leads (ways between tiles, thunderbird.cafe, v 1; see cafe.thunderbird.way.place). The tile names its signpost in its /ways.json; only a host (the page that holds the tile) reads it, since a tile can't reach the network. Change it any time: the tile never has to be republished.\",\"defs\":{\"main\":{\"type\":\"record\",\"description\":\"The record key is the tile's id and the exit's id, joined by a dot (e.g. \\\"maze.obelisk\\\").\",\"key\":\"any\",\"record\":{\"type\":\"object\",\"required\":[\"to\",\"updatedAt\"],\"properties\":{\"to\":{\"type\":\"array\",\"maxLength\":12,\"items\":{\"type\":\"ref\",\"ref\":\"#destination\"},\"description\":\"Where the exit leads. Empty: dormant, it leads nowhere yet. One: straight there. Several: the host offers a choice (\\\"pick a door\\\").\"},\"note\":{\"type\":\"string\",\"maxLength\":300,\"maxGraphemes\":100,\"description\":\"A line the host can show, e.g. \\\"Under construction\\\".\"},\"updatedAt\":{\"type\":\"string\",\"format\":\"datetime\"}}}},\"destination\":{\"type\":\"object\",\"description\":\"Exactly one of place or tile.\",\"properties\":{\"place\":{\"type\":\"string\",\"format\":\"at-uri\",\"description\":\"A place record (cafe.thunderbird.way.place): the usual case.\"},\"tile\":{\"type\":\"string\",\"format\":\"at-uri\",\"description\":\"A tile record (ing.dasl.masl), for a tile with no place record.\"},\"entrance\":{\"type\":\"string\",\"maxLength\":64,\"description\":\"Which entrance to arrive at, as named in that tile's /ways.json.\"},\"label\":{\"type\":\"string\",\"maxLength\":300,\"maxGraphemes\":100,\"description\":\"A label for the choice, when there are several.\"}}}}}",
-      "publishedAt": "2026-10-26T16:55:11.697Z"
+      "cid": "bafyreig3vbb6gtgcwfetmmwpfransu55wua6kht56hc7in7ytuyhge6l34",
+      "text": "{\"lexicon\":1,\"id\":\"cafe.thunderbird.way.signpost\",\"description\":\"A signpost: where one exit of a web tile leads (ways between tiles, thunderbird.cafe, v 1; see cafe.thunderbird.way.place). The tile names its signpost in its /ways.json; only a host (the page that holds the tile) reads it, since a tile can't reach the network. Change it any time: the tile never has to be republished.\",\"defs\":{\"main\":{\"type\":\"record\",\"description\":\"The record key is the tile's id and the exit's id, joined by a dot (e.g. \\\"maze.obelisk\\\").\",\"key\":\"any\",\"record\":{\"type\":\"object\",\"required\":[\"to\",\"updatedAt\"],\"properties\":{\"name\":{\"type\":\"string\",\"maxLength\":300,\"maxGraphemes\":100,\"description\":\"Optional: a name for the exit this signpost belongs to, shown by hosts and renderers (e.g. \\\"The slide\\\"). Without one, they make a name from the exit's id.\"},\"to\":{\"type\":\"array\",\"maxLength\":12,\"items\":{\"type\":\"ref\",\"ref\":\"#destination\"},\"description\":\"Where the exit leads. Empty: dormant, it leads nowhere yet. One: straight there. Several: the host offers a choice (\\\"pick a door\\\").\"},\"note\":{\"type\":\"string\",\"maxLength\":300,\"maxGraphemes\":100,\"description\":\"A line the host can show, e.g. \\\"Under construction\\\".\"},\"updatedAt\":{\"type\":\"string\",\"format\":\"datetime\"}}}},\"destination\":{\"type\":\"object\",\"description\":\"Exactly one of place or tile.\",\"properties\":{\"place\":{\"type\":\"string\",\"format\":\"at-uri\",\"description\":\"A place record (cafe.thunderbird.way.place): the usual case.\"},\"tile\":{\"type\":\"string\",\"format\":\"at-uri\",\"description\":\"A tile record (ing.dasl.masl), for a tile with no place record.\"},\"entrance\":{\"type\":\"string\",\"maxLength\":64,\"description\":\"Which entrance to arrive at, as named in that tile's /ways.json.\"},\"label\":{\"type\":\"string\",\"maxLength\":300,\"maxGraphemes\":100,\"description\":\"A label for the choice, when there are several.\"}}}}}",
+      "publishedAt": "2026-11-07T02:28:30.025Z"
     }
   },
   "maze": {
@@ -101,5 +101,11 @@
         }
       }
     }
+  },
+  "signpost-renderer": {
+    "uri": "at://did:plc:6vxjigxrqizmbo56gojxico3/ing.dasl.masl/3mzoty54cln2u",
+    "cid": "bafyreifeyejtny7l7dc6kv33yiyasihzfvgd2mjdvyr5ubxlkt2lj7b4fa",
+    "manifestCid": "bafyreieblwdn6rkxywlst2t467wsdgef3cfiddtrxfr6kk2e4tac2hfeau",
+    "publishedAt": "2026-11-07T02:28:33.266Z"
   }
 }
