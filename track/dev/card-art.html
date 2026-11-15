@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tracks: card pictures</title>
+<style>
+  body { margin: 0; padding: 20px; font: 14px/1.4 system-ui, sans-serif; background: #2b2b2b; color: #eee; }
+  .row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 24px; }
+  canvas { background: #000; border-radius: 6px; max-width: 100%; }
+  #banner { width: 640px; height: 360px; }
+  #icon { width: 256px; height: 256px; }
+  a { color: #ffd28a; }
+</style>
+</head>
+<body>
+<p>The card pictures for "Tracks", drawn with the tile's own jukebox (track/tile/looks.js). Opened through
+<code>npm run dev-track</code> (http://127.0.0.1:5240/card-art.html). Save both into <code>track\tile\</code>.</p>
+<div class="row"><canvas id="banner" width="1280" height="720"></canvas><canvas id="icon" width="256" height="256"></canvas></div>
+<p><a id="saveBanner" download="banner.png" href="#">Save banner.png (1280×720)</a> · <a id="saveIcon" download="icon.png" href="#">Save icon.png (256×256)</a></p>
+<script type="module">
+import { createScene } from '/tile/looks.js';
+
+// A still moment of music: a warm arch, livelier in the middle.
+const BANDS = [0.55, 0.7, 0.85, 0.95, 1, 0.9, 0.8, 0.7, 0.85, 0.95, 0.8, 0.65, 0.55, 0.45];
+const still = (look, extra = {}) => ({ playing: false, lessMotion: true, colour: 'rainbow', time: 140, duration: 437,
+  bands: (n) => Array.from({ length: n }, (_, i) => BANDS[Math.floor((i / n) * BANDS.length)]), level: (c) => (c ? 0.62 : 0.7), ...extra });
+
+// Draws a look into an offscreen canvas of w×h and returns it.
+function drawn(look, w, h, s) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const sc = createScene(c);
+  sc.resize(w, h, 1);
+  // The scope eases its waves in over time: a few steps to settle.
+  for (let i = 0; i < (look === 'scope' ? 90 : 1); i++) sc.draw(look, 0.05, { ...s, playing: look === 'scope' });
+  return c;
+}
+
+// ---- banner: the jukebox's own night (its background and checked floor carried across), the words on the left ----
+const b = document.getElementById('banner').getContext('2d');
+const JX = 650, sq = 26;                                  // where the jukebox's picture starts; the floor's squares
+const bg = b.createLinearGradient(0, 0, 0, 720); bg.addColorStop(0, '#2a1730'); bg.addColorStop(1, '#120a14');
+b.fillStyle = bg; b.fillRect(0, 0, 1280, 720);
+b.save(); b.globalAlpha = 0.18; b.fillStyle = '#e9dcc8';
+for (let y = 720 * 0.8; y < 720; y += sq) for (let x = JX + (Math.floor(y / sq) % 2) * sq - 52 * 30; x < JX; x += 52) b.fillRect(x, y, sq, sq);
+b.restore();
+b.drawImage(drawn('jukebox', 1280 - JX, 720, still('jukebox')), JX, 0);
+b.fillStyle = '#fbf3e4'; b.font = '700 96px Georgia, "Times New Roman", serif'; b.textAlign = 'left'; b.fillText('Tracks', 64, 230);
+b.fillStyle = '#e6c9a8'; b.font = '36px system-ui, sans-serif'; b.fillText('A song, played in the look', 66, 306); b.fillText('you like.', 66, 352);
+const chips = ['Jukebox', 'Reel-to-reel', 'Oscilloscope', 'Plain'];
+let x = 66; b.font = '600 22px system-ui, sans-serif';
+for (const c of chips) {
+  const w = b.measureText(c).width + 30;
+  b.fillStyle = c === 'Jukebox' ? '#f0b44c' : 'rgba(255,255,255,.12)';
+  b.beginPath(); b.roundRect(x, 400, w, 40, 20); b.fill();
+  b.fillStyle = c === 'Jukebox' ? '#2b1a10' : '#f4e7d4'; b.fillText(c, x + 15, 428);
+  x += w + 10;
+}
+
+// ---- icon: the jukebox alone ----
+const i = document.getElementById('icon').getContext('2d');
+const ibg = i.createLinearGradient(0, 0, 0, 256); ibg.addColorStop(0, '#3a1f42'); ibg.addColorStop(1, '#160c18');
+i.fillStyle = ibg; i.fillRect(0, 0, 256, 256);
+const small = drawn('jukebox', 300, 256, still('jukebox'));
+i.drawImage(small, -22, 0);
+
+document.getElementById('saveBanner').href = document.getElementById('banner').toDataURL('image/png');
+document.getElementById('saveIcon').href = document.getElementById('icon').toDataURL('image/png');
+window.cardsReady = true;
+</script>
+</body>
+</html>

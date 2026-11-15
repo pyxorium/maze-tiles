@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Track renderer: stand-in host</title>
+<style>
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #2b2b2b; color: #eee; }
+  header { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 10px 14px; }
+  header b { color: #fff; }
+  button { font: inherit; color: #eee; background: #444; border: 1px solid #5a5a5a; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  button[aria-pressed="true"] { background: #ffd28a; color: #1b1406; border-color: #ffd28a; }
+  .wrap { display: flex; gap: 14px; padding: 0 14px 14px; flex-wrap: wrap; }
+  iframe { flex: 1 1 640px; height: 1000px; border: 0; border-radius: 8px; background: #fff; }
+  iframe.phone { flex: 0 0 390px; height: 1100px; }
+  #log { flex: 1 1 260px; margin: 0; background: #1d1d1d; border-radius: 8px; padding: 10px; white-space: pre-wrap; font: 12px ui-monospace, monospace; min-height: 200px; max-height: 1000px; overflow: auto; }
+</style>
+</head>
+<body>
+<header>
+  <span><b>Send</b></span>
+  <button data-s="archive" aria-pressed="true">Archive song</button>
+  <button data-s="plyr">plyr.fm song</button>
+  <button data-s="plyrold">Old plyr.fm (link only)</button>
+  <button data-s="field">Not a concert, with a cover</button>
+  <button data-s="long">Long title, long notes, 47 MB</button>
+  <button data-s="like">Not a song</button>
+  <button data-s="none">Nothing (no host)</button>
+  <span><b>Audio</b></span>
+  <button data-a="send" aria-pressed="true">Send</button>
+  <button data-a="slow">Slow (4 s)</button>
+  <button data-a="not-found">Not found</button>
+  <button data-a="too-big">Too big</button>
+  <button data-a="not-allowed">Refuse</button>
+  <button data-a="silent">No answer</button>
+  <span><b>Width</b></span>
+  <button data-w="wide" aria-pressed="true">Computer</button>
+  <button data-w="phone">Phone</button>
+</header>
+<div class="wrap"><iframe id="f" title="The tile"></iframe><pre id="log"></pre></div>
+<script type="module">
+const P = 'did:plc:rqbqpaaluty5v47jwciowpik';
+const LINEAGE = 'SBD > DAT > ? > CDR > GRIP(wav 16/44.1) > FLAC(16/44.1/Level 8)';
+const blob = (cid, size, mimeType = 'audio/mpeg') => ({ $type: 'blob', ref: { $link: cid }, mimeType, size });
+const SONG = 'bafkreisamplesongstandinaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const COVER = 'bafkreisamplecoverstandinaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const longNotes = Array.from({ length: 14 }, (_, i) => `${i + 1}. A song with a name ${i % 3 === 0 ? '(and a long jam into the next one, where the band stretches out for a good while)' : ''}`).join('\n') + '\n\nRecorded from the soundboard; a small dropout patched from the audience recording.';
+const SAMPLES = {
+  archive: { collection: 'cafe.thunderbird.audio.track', rkey: '3n2caaaaaaaag', handle: 'pyxorium.com', value: { $type: 'cafe.thunderbird.audio.track',
+    title: 'Lord Only Knows (Pt. 1)', artist: 'Yonder Mountain String Band', album: 'Yonder Mountain String Band · The Fillmore Auditorium · 2002-04-20', trackNumber: 7, duration: 24, fileType: 'mp3',
+    audioBlob: blob(SONG, 288392, 'video/webm'), description: 'Yonder Mountain String Band, The Fillmore, Denver, CO, 2002-04-20.\nSet 1: Peace of Mind, Loved You Enough, Rag Doll…', tags: ['bluegrass', 'live', 'soundboard'],
+    recording: { date: '2002-04-20', venue: 'The Fillmore Auditorium', place: 'Denver, CO', set: 'Set 1', taper: 'Jim Smith', source: LINEAGE, archiveUrl: 'https://archive.org/details/ymsb2002-04-20.flac16.sbd', policyUrl: 'https://archive.org/details/YonderMountainStringBand' },
+    createdAt: '2026-11-15T03:10:00.000Z' } },
+  plyr: { collection: 'fm.plyr.track', rkey: '3kaaaaaaaaab', handle: 'pyxorium.com', value: { title: 'Jackson Station', artist: 'Band of Heathens', album: 'Band of Heathens · Grey Eagle · 2011-02-17', duration: 24, fileType: 'mp3', audioBlob: blob(SONG, 288392), createdAt: '2026-10-01T00:00:00Z' } },
+  plyrold: { collection: 'fm.plyr.track', rkey: '3zz1', handle: 'pyxorium.com', value: { title: 'Shibuya', artist: 'Galactic', album: 'Galactic · Moguls · 1997-08-15', duration: 412, audioUrl: 'https://x.r2.dev/a.mp3', createdAt: '2025-01-01T00:00:00Z' } },
+  field: { collection: 'cafe.thunderbird.audio.track', rkey: '3n2dfield', handle: null, value: { title: 'Rain on the porch roof', artist: 'pyxorium', duration: 24, audioBlob: blob(SONG, 288392), imageBlob: blob(COVER, 30000, 'image/png'), tags: ['field recording'], createdAt: '2026-11-15T00:00:00Z' } },
+  long: { collection: 'cafe.thunderbird.audio.track', rkey: '3n2dlong', handle: 'pyxorium.com', value: { title: 'Dark Star > Space > The Other One > Spanish Jam > Space > Wharf Rat (an unusually long medley title)', artist: 'A Band With A Fairly Long Name As Well', album: 'A Band With A Fairly Long Name As Well · Some Hall · 1979-12-31', trackNumber: 14, duration: 3852,
+    audioBlob: blob(SONG, 49600000), description: longNotes, tags: ["new year's eve", 'audience', 'jam', '1979'],
+    recording: { date: '1979-12-31', venue: 'Some Hall With a Long Name', place: 'Oakland, CA', set: 'Set 2', source: 'AUD > Cassette Master (D) > DAT > CDR > EAC > SHN > FLAC', archiveUrl: 'https://archive.org/details/example1979-12-31' }, createdAt: '2026-11-15T00:00:00Z' } },
+  like: { collection: 'app.bsky.feed.like', rkey: '3mzlike', handle: 'pyxorium.com', value: { subject: { uri: 'at://x/y/z', cid: 'bafyx' }, createdAt: '2026-11-01T00:00:00Z' } },
+};
+const frame = document.getElementById('f');
+const log = document.getElementById('log');
+const say = (s) => { log.textContent += s + '\n'; log.scrollTop = log.scrollHeight; };
+let sample = 'archive', audioMode = 'send';
+const choose = (attr, v) => { for (const b of document.querySelectorAll(`[data-${attr}]`)) b.setAttribute('aria-pressed', String(b.dataset[attr] === v)); };
+for (const b of document.querySelectorAll('[data-s]')) b.onclick = () => { sample = b.dataset.s; choose('s', sample); load(); };
+for (const b of document.querySelectorAll('[data-a]')) b.onclick = () => { audioMode = b.dataset.a; choose('a', audioMode); };
+for (const b of document.querySelectorAll('[data-w]')) b.onclick = () => { frame.classList.toggle('phone', b.dataset.w === 'phone'); choose('w', b.dataset.w); };
+const payloadOf = (name) => { const s = SAMPLES[name]; return { uri: `at://${P}/${s.collection}/${s.rkey}`, cid: 'bafyreisamplerecordaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', did: P, handle: s.handle, collection: s.collection, rkey: s.rkey, value: s.value }; };
+const send = (payload, transfer) => frame.contentWindow.postMessage({ action: 'tiles-protocol-down-data-payload', payload }, '*', transfer || []);
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+window.__asked = [];
+addEventListener('message', async (e) => {
+  if (e.source !== frame.contentWindow) return;
+  const d = e.data || {};
+  if (d.action === 'tiles-protocol-up-data-ready') {
+    say('tile is ready');
+    if (sample !== 'none') { send(payloadOf(sample)); say(`sent the ${sample} record`); }
+    return;
+  }
+  if (d.action !== 'tiles-protocol-up-data-payload') return;
+  window.__asked.push(d.payload);
+  say('tile asks: ' + JSON.stringify(d.payload));
+  const p = d.payload || {};
+  if (typeof p.audio === 'string') {
+    const base = { from: p.from };
+    if (audioMode === 'silent') return;
+    if (audioMode !== 'send' && audioMode !== 'slow') { send({ gotAudio: p.audio, ...base, error: audioMode }); say(`answered: ${audioMode}`); return; }
+    const bytes = await (await fetch('/files/sample.mp3')).arrayBuffer();
+    const steps = audioMode === 'slow' ? 10 : 4;
+    for (let i = 1; i <= steps; i++) { await wait(audioMode === 'slow' ? 400 : 120); send({ audioProgress: p.audio, ...base, received: Math.round(bytes.byteLength * i / (steps + 1)), total: bytes.byteLength }); }
+    send({ gotAudio: p.audio, ...base, type: 'audio/mpeg', bytes }, [bytes]);
+    say('sent the song (sample.mp3)');
+    return;
+  }
+  if (typeof p.picture === 'string') {
+    const bytes = await (await fetch('/files/cover.png')).arrayBuffer();
+    send({ gotPicture: p.picture, from: p.from, type: 'image/png', bytes }, [bytes]);
+    say('sent the cover');
+  }
+});
+function load() { log.textContent = ''; window.__asked = []; frame.src = '/tile/index.html?' + Date.now(); }
+load();
+</script>
+</body>
+</html>

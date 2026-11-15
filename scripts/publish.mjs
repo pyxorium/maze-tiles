@@ -13,6 +13,8 @@
 //   add --signpost to any of these for the signpost renderer instead (the same plan, SR7): one tile, plus the two
 //   ways lexicons if they've changed (SR5 adds the signpost's optional `name`); no place or signposts; its address and
 //   CID then go in Raku's RENDERERS too
+//   add --track to any of these for the track renderer, "Tracks", instead (claude/mixtape-3c-track-renderer-notes.md,
+//   R3c-5): one tile, nothing else; its address and CID then go in Raku's RENDERERS for both song kinds
 //
 // Before publishing the 3D maze it checks that tile\maze.js is built from the current src\ (it rebuilds in
 // memory with the Foundry's esbuild and compares); if not, it stops and says to run `npm run build`.
@@ -39,7 +41,7 @@ import readline from 'node:readline';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ROOT, TILES, FOREST_TILES, PLACE_TILES, SIGNPOST_TILES, THUNDERBIRD_DID, publishFiles, cspOf } from './tiles.mjs';
+import { ROOT, TILES, FOREST_TILES, PLACE_TILES, SIGNPOST_TILES, TRACK_TILES, THUNDERBIRD_DID, publishFiles, cspOf } from './tiles.mjs';
 import { ISO_TILES } from '../iso/tiles.mjs';
 import { rawCid } from './lib/cid.js';
 import { publishTile, publishLexicon } from './lib/tile-record.js';
@@ -231,7 +233,7 @@ export async function runPublish({ fetchImpl = fetch, ask, askHidden, log = cons
     log(`  done: ${r.uri}`);
     log(`  open it: https://raku.lexicographer.space/#t=${encodeURIComponent(r.uri)}&a=0`);
     log(`       or: https://lexicographer.space/@${handle}/${r.rkey}`);
-    if (tiles[t.id].renderer) log(`  for Raku's src/config.js RENDERERS ('${tiles[t.id].renderer}'): uri '${r.uri}', cid '${r.cid}'`);
+    if (tiles[t.id].renderer) log(`  for Raku's src/config.js RENDERERS ('${[].concat(tiles[t.id].renderer).join("', '")}'): uri '${r.uri}', cid '${r.cid}'`);
   }
   for (const p of placesDue) {
     const tile = out[p.id];
@@ -291,7 +293,7 @@ if (process.argv[1] && resolve(process.argv[1]).toLowerCase() === fileURLToPath(
   const args = process.argv.slice(2);
   const io = makeAsk();
   runPublish({ ask: io.ask, askHidden: io.askHidden, dryRun: args.includes('--dry-run'), again: args.includes('--again'),
-    ...(args.includes('--iso') ? { tiles: ISO_TILES } : args.includes('--forest') ? { tiles: FOREST_TILES } : args.includes('--place') ? { tiles: PLACE_TILES } : args.includes('--signpost') ? { tiles: SIGNPOST_TILES } : {}) })
+    ...(args.includes('--iso') ? { tiles: ISO_TILES } : args.includes('--forest') ? { tiles: FOREST_TILES } : args.includes('--place') ? { tiles: PLACE_TILES } : args.includes('--signpost') ? { tiles: SIGNPOST_TILES } : args.includes('--track') ? { tiles: TRACK_TILES } : {}) })
     .catch((err) => { console.error(`\n${err.message}`); process.exitCode = 1; })
     .finally(() => io.close());
 }

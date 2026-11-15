@@ -83,6 +83,7 @@ swoop through doorways become quick fades. Nothing is saved: a reload starts aga
   http://127.0.0.1:5201/), tests (part of `npm test`) and publish settings. Not published unless you choose to.
 - `lab\` the over-the-shoulder look test (open `lab\shoulder-test.html`), built from the frozen map.
 - `place\` the place renderer, a tile that shows one place record for Raku: "Places" below.
+- `track\` the track renderer, a tile that plays one song record for Raku: "Tracks" below.
 
 ## Changing the rooms
 
@@ -323,3 +324,46 @@ node scripts/publish.mjs --signpost
 ```
 
 From thunderbird.cafe. At the end it prints the pin for Raku's `RENDERERS` (`'cafe.thunderbird.way.signpost'`).
+
+## Tracks (`track\`): the track renderer
+
+A tile that plays one song record, with its credits, in the look the listener picks. Raku opens it when someone opens
+a song's own address: one of ours (`cafe.thunderbird.audio.track`, from the Web Tile Foundry's importer) or a plyr.fm
+song (`fm.plyr.track`). Plan: claude/mixtape-3c-track-renderer-notes.md in the Foundry project (R3c-1 to R3c-9), with
+its approved mockup claude/raku-track-renderer-mockup.html. It lives here for now beside Places and Signposts (R3c-5:
+to revisit, perhaps moving to `audio-tracks` or a repo of its own for renderers).
+
+- **The looks (R3c-1, R3c-2, R3c-8):** Jukebox (the first look), Reel-to-reel, Oscilloscope (a calm braid with a
+  glow between its strands, green or rainbow) and Plain, switched on the tile (a small menu on phones); the music
+  carries on across a switch. The look and the scope's colour are remembered in the tile's own storage when the
+  browser keeps it. A device that asks for less motion opens on Plain. Drawing: `track\tile\looks.js`.
+- **What it shows (R3c-3, R3c-6):** the title card (title, band, "venue, place · date", "Set 1 · track 7 · 7:17"),
+  the player, and a credits card (band, where, when, set, taper, source; the Archive and policy links; notes folded;
+  tags; "Shared by @handle"). A plyr.fm song: "Uploaded through plyr.fm" and "Listen on plyr.fm ↗"; an old one whose
+  audio is only on plyr.fm's storage gets the link only.
+- **The song (R3c-4):** fetched only when Play is pressed: the tile sends `{ audio: "<blob cid>", from: "<record>" }`;
+  a host that answers sends `{ audioProgress, from, received, total }` while it downloads, then
+  `{ gotAudio, from, type, bytes }` (or `{ gotAudio, from, error }`); it plays from a `blob:` address, so seeking
+  always works. Raku fetches only the record's own `audioBlob`, from its account's server, at most 100 MB, audio by
+  its bytes, checked against the record's CID. A cover (`imageBlob`) comes through `{ picture }`, as Places' card.
+  It only ever sends `audio` and `picture`.
+- **The look of the page:** the travel pages' cream; `track\tile\track.css`'s `:root` line is the same as
+  `site\way.css`'s (`test\track.test.mjs` checks).
+- **The card pictures:** the jukebox, drawn by the tile's own `looks.js`. To redraw: `npm run dev-track`, open
+  http://127.0.0.1:5240/card-art.html, and save both pictures into `track\tile\`.
+- `npm run dev-track`: http://127.0.0.1:5240/ holds the tile in a stand-in host that answers "ready" with a sample
+  (an Archive song, a plyr.fm song, an old one, one with a cover, a long one, not a song, nothing), its audio request
+  with a short synth loop made for this (`track\dev\sample.mp3`, no one's music) or a refusal or silence, and logs
+  what the tile asks.
+- `test\track.test.mjs` (part of `npm test`); `test\browser\check_track.mjs` through the stand-in host (run in the
+  build chat); Raku's `test\browser\check_renderer.py` through the real loader.
+
+**Publishing it** (`--track`: this tile only), in `C:\thunderbird-cafe\maze-tiles`:
+
+```
+node scripts/publish.mjs --track --dry-run
+node scripts/publish.mjs --track
+```
+
+From thunderbird.cafe. At the end it prints the pin for Raku's `RENDERERS`, for both song kinds
+(`'cafe.thunderbird.audio.track', 'fm.plyr.track'`).

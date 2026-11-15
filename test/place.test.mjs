@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readPlace, byLine, formatDate, PLACE, readTileCard, readPicture, tileByLine, changedLine, CANT_READ, PICTURE_MAX } from '../place/tile/view.js';
 import { runPublish, ACCOUNT, PLACE as PLACE_NSID, RESERVED_KEYS } from '../scripts/publish.mjs';
-import { TILES, FOREST_TILES, PLACE_TILES, SIGNPOST_TILES, ROOT } from '../scripts/tiles.mjs';
+import { TILES, FOREST_TILES, PLACE_TILES, SIGNPOST_TILES, TRACK_TILES, ROOT } from '../scripts/tiles.mjs';
 import { ISO_TILES } from '../iso/tiles.mjs';
 import { createFakePds } from './fake-pds.mjs';
 
@@ -124,7 +124,7 @@ test('--place: one tile from thunderbird.cafe, with its card pictures; no place,
 });
 
 test('no tile may be called after one of published.json\'s own headings; publishing one is refused', async () => {
-  for (const list of [TILES, FOREST_TILES, PLACE_TILES, SIGNPOST_TILES, ISO_TILES]) {
+  for (const list of [TILES, FOREST_TILES, PLACE_TILES, SIGNPOST_TILES, TRACK_TILES, ISO_TILES]) {
     for (const id of Object.keys(list)) assert.ok(!RESERVED_KEYS.includes(id), `tile id "${id}"`);
   }
   const pds = createFakePds({ did: ACCOUNT, handle: 'thunderbird.cafe' });
