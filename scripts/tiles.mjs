@@ -1,10 +1,8 @@
 // tiles.mjs: what goes into each tile (modelled on rooms-lab/scripts/tiles.mjs), for publish.mjs and copy-to-site.mjs.
 //   maze            the Escher maze over the shoulder: twelve rooms in 3D (TILES; publish.mjs)
 //   winter-forest   Winter Forest, the hub beyond the obelisk (FOREST_TILES; publish.mjs --forest)
-//   place-renderer  "Places", the place renderer: one place record as a postcard, for Raku (PLACE_TILES; publish.mjs --place)
-//   signpost-renderer  "Signposts", the signpost renderer: where one exit leads, for Raku (SIGNPOST_TILES; publish.mjs --signpost)
-//   track-renderer  "Tracks", the track renderer: one song, played in a look, for Raku (TRACK_TILES; publish.mjs --track)
 // The isometric step 1 (the frozen snapshot) has its own settings in iso/tiles.mjs (publish.mjs --iso).
+// The renderer tiles (Places, Signposts, Tracks) moved to C:\thunderbird-cafe\renderer-tiles on Nov 20 2026.
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,69 +59,6 @@ export const FOREST_TILES = {
 };
 // Every tile with ways, for the site's way pages (copy-to-site.mjs).
 export const WAY_TILES = { ...TILES, ...FOREST_TILES };
-
-// The place renderer (claude/raku-renderer-tiles-plan.md, RT1 to RT9): a tile that shows one place record as a
-// postcard, given the record by its host over the tiles spec's data protocol. Raku pins it (RENDERERS in Raku's
-// src/config.js) and opens it for place addresses. Published on its own with publish.mjs --place; no ways of its own.
-export const PLACE_TILES = {
-  // Its id is not "places": published.json already uses that key for the place records (Nov 6: the first publish
-  // under that id overwrote them; repaired by hand).
-  'place-renderer': {
-    name: 'Places',
-    description: "Shows a place (a cafe.thunderbird.way.place record) as a postcard: its name, who made it, the card of the tile behind it, and a way into that tile. A place keeps one address while its tile is replaced. Raku opens this when you open a place's address.",
-    sizing: { width: 640, height: 480 },
-    folder: 'place/tile',
-    files: ['index.html', 'place.css', 'place.js', 'view.js'],
-    cards: ['icon.png', 'banner.png'],
-    icon: '/icon.png',
-    screenshot: '/banner.png',
-    cardArt: 'open place\\dev\\card-art.html in a browser and save both pictures into place\\tile\\',
-    generator: 'Places',
-    renderer: 'cafe.thunderbird.way.place',       // the kind Raku pins it for: publish.mjs prints the pin
-  },
-};
-
-// The signpost renderer (claude/raku-renderer-tiles-plan.md, "The signpost renderer", SR1 to SR7): one signpost record
-// (where one exit of a tile leads) as a postcard, given the record over the data protocol; it asks its host for the
-// records the names come from ({ get }, SR2 and SR6). Raku pins it for signposts. Published on its own with
-// publish.mjs --signpost, which also publishes the ways lexicons when they've changed (SR5 adds the signpost's `name`).
-export const SIGNPOST_TILES = {
-  'signpost-renderer': {
-    name: 'Signposts',
-    description: "Shows a signpost (a cafe.thunderbird.way.signpost record) as a postcard: the way out it belongs to, who made it, where it leads, and a way to go there. A signpost can be changed any time without changing either tile. Raku opens this when you open a signpost's address.",
-    sizing: { width: 640, height: 480 },
-    folder: 'signpost/tile',
-    files: ['index.html', 'signpost.css', 'signpost.js', 'view.js'],
-    cards: ['icon.png', 'banner.png'],
-    icon: '/icon.png',
-    screenshot: '/banner.png',
-    cardArt: 'open signpost\\dev\\card-art.html in a browser and save both pictures into signpost\\tile\\',
-    generator: 'Signposts',
-    renderer: 'cafe.thunderbird.way.signpost',
-    lexicons: true,                               // publishes the ways lexicons when new or changed
-  },
-};
-
-// The track renderer (claude/mixtape-3c-track-renderer-notes.md, R3c-1 to R3c-9): one song record, ours
-// (cafe.thunderbird.audio.track, from the Foundry's importer) or plyr.fm's (fm.plyr.track), with its credits, played in
-// the look the listener picks. It asks its host for the song's audio when Play is pressed ({ audio }, R3c-4). Raku pins
-// it for both kinds. Published on its own with publish.mjs --track. It lives here for now beside Places and Signposts
-// (R3c-5: to revisit, perhaps moving to audio-tracks or a repo of its own for renderers).
-export const TRACK_TILES = {
-  'track-renderer': {
-    name: 'Tracks',
-    description: "Plays a song (a cafe.thunderbird.audio.track or fm.plyr.track record) with its credits, in the look you pick: a jukebox, a reel-to-reel deck, an oscilloscope, or plain. The song is fetched from its account when you press play. Raku opens this when you open a song's address.",
-    sizing: { width: 640, height: 480 },
-    folder: 'track/tile',
-    files: ['index.html', 'track.css', 'track.js', 'view.js', 'looks.js'],
-    cards: ['icon.png', 'banner.png'],
-    icon: '/icon.png',
-    screenshot: '/banner.png',
-    cardArt: 'npm run dev-track, then http://127.0.0.1:5240/card-art.html, and save both pictures into track\\tile\\',
-    generator: 'Tracks',
-    renderer: ['cafe.thunderbird.audio.track', 'fm.plyr.track'],
-  },
-};
 
 // The Foundry's one fixed type per kind of file (web-tile-foundry/src/core/fileset.js CONTENT_TYPES).
 export const PUBLISH_TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.json': 'application/json' };

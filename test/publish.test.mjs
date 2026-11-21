@@ -3,10 +3,12 @@
 // check that tile/maze.js is built from the current src/, and the isometric snapshot's own settings (--iso).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runPublish, ACCOUNT, PYXORIUM_DID, PLACE, SIGNPOST, accountOf } from '../scripts/publish.mjs';
+import { runPublish, ACCOUNT, PYXORIUM_DID, PLACE, SIGNPOST, accountOf, RESERVED_KEYS } from '../scripts/publish.mjs';
 import { publishFiles, TILES, FOREST_TILES } from '../scripts/tiles.mjs';
 import { ISO_TILES } from '../iso/tiles.mjs';
 import { readFileSync, readdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { createFakePds } from './fake-pds.mjs';
 import { dagCborCid } from '../scripts/lib/dagcbor.js';
 import { rawCid } from '../scripts/lib/cid.js';
@@ -307,5 +309,45 @@ test('the forest stays about its planned size, its page has no inline script, an
   for (const f of readdirSync(new URL('../forest/src/', import.meta.url))) {
     const text = readFileSync(new URL(`../forest/src/${f}`, import.meta.url), 'utf8');
     assert.ok(!/\bfetch\(|XMLHttpRequest|WebSocket|eval\(|new Function/.test(text), `forest/src/${f} reaches for nothing outside the tile`);
+  }
+});
+
+// ---------- moved from the renderers' tests when they left for C:\thunderbird-cafe\renderer-tiles (Nov 20 2026) ----------
+
+test('no tile may be called after one of published.json\'s own headings; publishing one is refused', async () => {
+  for (const list of [TILES, FOREST_TILES, ISO_TILES]) {
+    for (const id of Object.keys(list)) assert.ok(!RESERVED_KEYS.includes(id), `tile id "${id}"`);
+  }
+  const pds = cafePds();
+  const bad = { places: { ...FOREST_TILES['winter-forest'] } };
+  await assert.rejects(runPublish({ fetchImpl: pds.fetchImpl, log: () => {}, ask: async () => 'y', askHidden: async () => 'right-password',
+    readPublished: () => ({}), writePublished: () => { throw new Error('must not write'); }, checkBundle: async () => true, tiles: bad, dryRun: true }),
+  /can't be called "places"/);
+});
+
+test('the published.json in this folder: the place records, signposts and lexicons, and no renderer (they moved)', () => {
+  const pj = JSON.parse(readFileSync(new URL('../published.json', import.meta.url), 'utf8'));
+  assert.ok(pj.places && pj.places['winter-forest'] && pj.places.maze, 'the place records\' bookkeeping');
+  assert.ok(pj.signposts && pj.signposts['winter-forest.slide'] && pj.signposts['maze.obelisk'], 'the signposts\'');
+  assert.ok(pj.lexicons && pj.lexicons[PLACE] && pj.lexicons[SIGNPOST], 'the two ways lexicons\'');
+  for (const id of ['place-renderer', 'signpost-renderer', 'track-renderer']) assert.ok(!(id in pj), `${id} is in renderer-tiles' published.json now`);
+});
+
+test('the signpost lexicon (SR5): an optional name, nothing else changed', () => {
+  const l = JSON.parse(readFileSync(new URL(`../lexicons/${SIGNPOST}.json`, import.meta.url), 'utf8'));
+  const rec = l.defs.main.record;
+  assert.deepEqual(rec.required, ['to', 'updatedAt']);
+  assert.deepEqual(Object.keys(rec.properties), ['name', 'to', 'note', 'updatedAt']);
+  assert.equal(rec.properties.name.type, 'string');
+  assert.equal(rec.properties.name.maxGraphemes, 100);
+});
+
+test('--place, --signpost and --track are refused here, pointing at renderer-tiles (never publishing the maze instead)', () => {
+  const script = fileURLToPath(new URL('../scripts/publish.mjs', import.meta.url));
+  for (const opt of ['--place', '--signpost', '--track']) {
+    const r = spawnSync(process.execPath, [script, opt, '--dry-run'], { encoding: 'utf8', input: '', timeout: 20000 });
+    assert.equal(r.status, 1, opt);
+    assert.match(r.stderr, /renderer-tiles/, opt);
+    assert.ok(!/Account:|This will publish/.test(r.stdout), `${opt}: nothing looked up`);
   }
 });
